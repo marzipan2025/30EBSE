@@ -11,6 +11,12 @@ val signing = Properties().apply {
     if (f.exists()) f.inputStream().use { load(it) }
 }
 
+// 드라이브 API 키도 저장소에 넣지 않는다 — drive.properties (DRIVE_API_KEY=…). CLAUDE.md 참고.
+val drive = Properties().apply {
+    val f = rootProject.file("drive.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+
 android {
     namespace = "com.artbrain.ebse"
     compileSdk {
@@ -23,9 +29,10 @@ android {
         applicationId = "com.artbrain.ebse"
         minSdk = 30        // Poke4 Lite = Android 11
         targetSdk = 36
-        versionCode = 3
-        versionName = "0.1.2"
+        versionCode = 4
+        versionName = "0.2.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "DRIVE_API_KEY", "\"${drive.getProperty("DRIVE_API_KEY", "")}\"")
     }
 
     signingConfigs {

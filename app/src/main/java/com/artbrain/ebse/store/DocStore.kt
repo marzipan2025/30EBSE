@@ -10,14 +10,22 @@ data class Doc(
     val id: String,
     val name: String,
     val modifiedTime: String,
-    /** 본문이 기기에 있나. 30EBSE 는 들일 때 곧바로 풀어 두므로 목록에 뜨는 것은 늘 참이다. */
+    /** 본문을 받아 뒀나 */
     val cached: Boolean = false,
-    /** 무엇에서 풀었나 — pdf·docx·epub… ([Import] 의 MIME_*) */
-    val mimeType: String = "text/plain",
+    /** 무엇으로 푸나 — 구글 문서 또는 [com.artbrain.ebse.text.Convert] 의 종류 */
+    val mimeType: String = GOOGLE_DOC,
+    /** 드라이브의 리소스 키 — 오래전에 링크 공유된 항목은 이것이 있어야 열린다 */
+    val resourceKey: String? = null,
+    /**
+     * 드라이브 폴더에서 사라졌지만 받아 둔 본문이 있어 남겨 둔 칸. 새로고침으로 다시
+     * 받을 곳이 없고, 지우면(×) 목록에서도 빠진다.
+     */
+    val gone: Boolean = false,
 ) {
     val isEpub: Boolean get() = mimeType == EPUB
 
     companion object {
+        const val GOOGLE_DOC = "application/vnd.google-apps.document"
         const val EPUB = "application/epub+zip"
     }
 }
@@ -27,7 +35,7 @@ data class Doc(
  *
  * 앱 전용 폴더에만 쓴다 — 권한이 필요 없고, 앱을 지우면 함께 사라진다.
  *
- *   files/index.json     들여온 문서 목록 (새로 들인 것이 앞)
+ *   files/index.json     드라이브 폴더의 문서 목록 (받아 둔 것이 앞)
  *   files/pos.json       문서마다 읽던 쪽
  *   files/docs/<id>.txt  본문
  *   files/docs/<id>/     본문에 든 사진 (epub 만). 이름은 본문의 표가 가리킨다.
@@ -44,13 +52,11 @@ class DocStore(ctx: Context) {
     // ── 목록 ──────────────────────────────────────────────
 
     /**
-     * 목록을 읽는다. **본문이 있는 것만** 뜬다.
+     * 목록을 읽는다. **받아 둔 문서가 앞에 온다** — 같은 무리 안에서는 드라이브가 준
+     * 차례(최근 고친 순)를 지킨다.
      *
-     * 지운 문서는 본문이 휴지통으로 가므로 곧바로 목록에서 빠지고, Undo 로
-     * 되돌리면 제자리(들인 차례)로 돌아온다. 목록에서 따로 빼고 넣지 않는다 —
-     * 본문이 있느냐 하나에서 매번 셈하므로 둘이 어긋날 여지가 없다.
-     *
-     * 목록 파일을 고쳐 쓸 때는 [all] 로 읽는다 — Undo 를 기다리는 칸을 잃지 않게.
+     * 폴더에서 사라진 칸([Doc.gone])은 본문이 있을 때만 뜬다. 그런 칸을 지우면 본문이
+     * 휴지통으로 가며 곧바로 빠지고, Undo 로 되돌리면 돌아온다.
      */
     fun loadIndex(all: Boolean = false): List<Doc> {
         if (!indexFile.exists()) return emptyList()
@@ -60,8 +66,9 @@ class DocStore(ctx: Context) {
                 val o = arr.getJSONObject(i)
                 val id = o.getString("id")
                 Doc(id, o.getString("name"), o.optString("modifiedTime"), bodyFile(id).exists(),
-                    o.optString("mimeType", "text/plain"))
-            }.filter { all || it.cached }
+                    o.optString("mimeType", Doc.GOOGLE_DOC), o.optString("resourceKey").ifEmpty { null },
+                    o.optBoolean("gone", false))
+            }.filter { all || it.cached || !it.gone }.sortedByDescending { it.cached }
         }.getOrDefault(emptyList())
     }
 
@@ -70,6 +77,8 @@ class DocStore(ctx: Context) {
         for (d in docs) arr.put(JSONObject().apply {
             put("id", d.id); put("name", d.name); put("modifiedTime", d.modifiedTime)
             put("mimeType", d.mimeType)
+            d.resourceKey?.let { put("resourceKey", it) }
+            if (d.gone) put("gone", true)
         })
         indexFile.writeText(arr.toString())
     }
@@ -137,13 +146,16 @@ class DocStore(ctx: Context) {
         if (gone.isNotEmpty()) dropFromIndex(gone)
     }
 
-    /** 본문까지 사라진 칸을 목록 파일에서도 뺀다. */
+    /** 본문까지 지운 칸 가운데 폴더에서 이미 사라진 것을 목록 파일에서도 뺀다. */
     private fun dropFromIndex(ids: Set<String>) {
         if (!indexFile.exists()) return
         runCatching {
             val arr = JSONArray(indexFile.readText())
             val keep = JSONArray()
-            for (i in 0 until arr.length()) arr.getJSONObject(i).let { if (safe(it.getString("id")) !in ids) keep.put(it) }
+            for (i in 0 until arr.length()) arr.getJSONObject(i).let {
+                // 폴더에서 사라진 칸만 목록에서도 뺀다. 폴더에 남아 있는 칸은 받지 않은 채로 남는다.
+                if (!(safe(it.getString("id")) in ids && it.optBoolean("gone", false))) keep.put(it)
+            }
             indexFile.writeText(keep.toString())
         }
     }
@@ -154,6 +166,14 @@ class DocStore(ctx: Context) {
         if (!f.exists()) return 0L
         val images = imageDir(id).walkTopDown().filter { it.isFile }.sumOf { it.length() }
         return f.length() + images
+    }
+
+    /** 모두 지운다 — 폴더 링크를 바꿨을 때. 이전 폴더의 목록·본문·사진·읽던 자리가 사라진다. */
+    fun wipe() {
+        docsDir.listFiles()?.forEach { it.deleteRecursively() }
+        trashDir.deleteRecursively()
+        indexFile.delete()
+        posFile.delete()
     }
 
     // ── 읽던 자리 ─────────────────────────────────────────

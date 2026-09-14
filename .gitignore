@@ -12,6 +12,7 @@ build/
 local.properties
 /keystore.properties
 /keystore/
+/drive.properties
 /dist/
 
 # 폰트는 재배포하지 않는다 — README 의 "글꼴" 참고

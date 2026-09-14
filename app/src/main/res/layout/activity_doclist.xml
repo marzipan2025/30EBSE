@@ -14,50 +14,48 @@
         android:layout_gravity="center"
         android:orientation="vertical">
 
-        <!-- 머리 — 왼쪽에 이름과 ©, 오른쪽에 * (파일 고르기) -->
+        <!-- 머리 — 왼쪽에 이름, 오른쪽에 ○ (설정) 와 ↩ (새로고침 · 새 판 확인) -->
         <FrameLayout
             android:id="@+id/head"
             android:layout_width="match_parent"
             android:layout_height="@dimen/touch">
 
-            <LinearLayout
+            <TextView
+                android:id="@+id/title"
                 android:layout_width="wrap_content"
                 android:layout_height="match_parent"
                 android:layout_gravity="start"
-                android:orientation="horizontal">
+                android:gravity="center_vertical"
+                android:includeFontPadding="false"
+                android:text="@string/app_name"
+                android:textColor="@android:color/black" />
 
-                <TextView
-                    android:id="@+id/title"
-                    android:layout_width="wrap_content"
-                    android:layout_height="match_parent"
-                    android:gravity="center_vertical"
-                    android:includeFontPadding="false"
-                    android:text="@string/app_name"
-                    android:textColor="@android:color/black" />
-
-                <!-- 윗첨자 크기의 이탤릭 © — 앱 정보와 라이선스. 글자는 작아도
-                     누르는 자리는 머리 높이를 다 쓴다. -->
-                <TextView
-                    android:id="@+id/about"
-                    android:layout_width="wrap_content"
-                    android:layout_height="match_parent"
-                    android:contentDescription="앱 정보"
-                    android:gravity="top"
-                    android:includeFontPadding="false"
-                    android:text="&#xA9;"
-                    android:textColor="@color/ink_press" />
-            </LinearLayout>
-
-            <Button
-                android:id="@+id/pick"
-                android:layout_width="@dimen/touch"
+            <LinearLayout
+                android:layout_width="wrap_content"
                 android:layout_height="match_parent"
                 android:layout_gravity="end"
-                android:background="@null"
-                android:contentDescription="파일 고르기"
-                android:stateListAnimator="@null"
-                android:text="*"
-                android:textColor="@color/ink_press" />
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/settings"
+                    android:layout_width="@dimen/touch"
+                    android:layout_height="match_parent"
+                    android:background="@null"
+                    android:contentDescription="설정"
+                    android:stateListAnimator="@null"
+                    android:text="&#x25CB;"
+                    android:textColor="@color/ink_press" />
+
+                <Button
+                    android:id="@+id/refresh"
+                    android:layout_width="@dimen/touch"
+                    android:layout_height="match_parent"
+                    android:background="@null"
+                    android:contentDescription="새로고침"
+                    android:stateListAnimator="@null"
+                    android:text="&#x21A9;"
+                    android:textColor="@color/ink_press" />
+            </LinearLayout>
         </FrameLayout>
 
         <LinearLayout

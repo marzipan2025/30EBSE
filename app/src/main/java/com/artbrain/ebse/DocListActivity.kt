@@ -1,17 +1,13 @@
 package com.artbrain.ebse
 
 import android.app.Activity
-import android.content.ActivityNotFoundException
 import android.content.Intent
-import android.graphics.Rect
-import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.util.TypedValue
 import android.view.Gravity
-import android.view.TouchDelegate
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -19,10 +15,12 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.artbrain.ebse.net.Net
+import com.artbrain.ebse.net.PublicDrive
 import com.artbrain.ebse.net.Updater
 import com.artbrain.ebse.store.Doc
 import com.artbrain.ebse.store.DocStore
-import com.artbrain.ebse.store.Import
+import com.artbrain.ebse.store.Library
+import com.artbrain.ebse.store.Settings
 import com.artbrain.ebse.ui.Chime
 import com.artbrain.ebse.ui.Eink
 import com.artbrain.ebse.ui.Fonts
@@ -39,15 +37,18 @@ import kotlinx.coroutines.launch
 import kotlin.math.max
 
 /**
- * 문서 목록.
+ * 문서 목록 — 드라이브 폴더 하나(설정의 링크) 아래의 문서들.
  *
  * 스크롤을 쓰지 않는다 — 화면에 들어갈 만큼만 놓고 나머지는 이전/다음
  * 단추로 넘긴다. 쪽 수는 화면 높이에서 구하므로 기기가 바뀌어도 맞는다.
+ *
+ * 오른쪽 위에 `○`(설정)와 `↩`(새로고침 + 새 판 확인)가 있다.
  */
 class DocListActivity : Activity() {
 
     private val scope = MainScope()
     private lateinit var store: DocStore
+    private lateinit var settings: Settings
 
     private lateinit var root: FrameLayout
     private lateinit var box: View
@@ -57,16 +58,14 @@ class DocListActivity : Activity() {
     private lateinit var empty: TextView
     private lateinit var btnPrev: TextView
     private lateinit var btnNext: TextView
-    private lateinit var btnPick: TextView
-    private lateinit var about: TextView
+    private lateinit var btnSettings: TextView
+    private lateinit var btnRefresh: TextView
 
     private var docs: List<Doc> = emptyList()
     private var page = 0
     private var perPage = 1
     private var busy = false
 
-    /** 아래 상태줄에 띄울 말. null 이면 형편에 맞는 기본 말이 나온다. */
-    private var status: String? = null
     private val popup by lazy { Popup(root) }
     private lateinit var chime: Chime
 
@@ -75,6 +74,7 @@ class DocListActivity : Activity() {
         setContentView(R.layout.activity_doclist)
         Eink.applyTheme(this)
         store = DocStore(this)
+        settings = Settings(this)
 
         // 리더처럼 시스템 막대를 걷는다. 쓸어내릴 때만 잠깐 나온다. 활용공간은
         // 화면 비율로 잡으므로 막대 높이만큼 위가 비는 일이 없다.
@@ -89,14 +89,14 @@ class DocListActivity : Activity() {
         title = findViewById(R.id.title)
         btnPrev = findViewById(R.id.prev)
         btnNext = findViewById(R.id.next)
-        btnPick = findViewById(R.id.pick)
-        about = findViewById(R.id.about)
+        btnSettings = findViewById(R.id.settings)
+        btnRefresh = findViewById(R.id.refresh)
         chime = Chime(this, root)
 
         btnPrev.setOnClickListener { if (page > 0) { page--; render() } }
         btnNext.setOnClickListener { if (page < lastPage()) { page++; render() } }
-        btnPick.setOnClickListener { pick() }
-        about.setOnClickListener { showAbout() }
+        btnSettings.setOnClickListener { showSettings() }
+        btnRefresh.setOnClickListener { refresh() }
 
         // 이 화면의 글자는 모두 geist — 가는 이탤릭 Geist Mono.
         // 제목만 기울이지 않은 보통 굵기로.
@@ -105,11 +105,13 @@ class DocListActivity : Activity() {
         title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 20f)
         title.includeFontPadding = false
         geist(number, 14f)
-        geist(btnPick, 24f)
-        setUpAbout()
+        geist(btnSettings, 24f)
+        geist(btnRefresh, 24f)
         geist(btnPrev, 24f)
         geist(btnNext, 24f)
         root.post { sizeBox() }
+        // ↩ 가 끝에 붙은 뒤에(geist 가 건 post 다음) ○ 를 ↩ 쪽으로 당긴다.
+        btnRefresh.post { btnRefresh.post { placeSettingsButton() } }
 
         // 지난번에 치워 둔 것은 되돌릴 기회가 지났다. 여기서 쓸어 낸다.
         store.purgeAll()
@@ -125,18 +127,17 @@ class DocListActivity : Activity() {
             val h = rows.height
             if (h <= 0 || h == measuredRowsH) return@addOnGlobalLayoutListener
             measuredRowsH = h
-            // 들어가는 만큼을 세어 칸 높이를 정하고(간격은 이 값으로 고정),
-            // 놓기는 하나 적게 한다 — 마지막 칸과 아래 줄 사이가 그만큼 뜬다.
             val fit = max(1, h / Ink.dp(this, ROW_DP).toInt())
             rowH = h / fit
             perPage = fit
             render()
+            // 처음 켰는데 폴더 링크가 없으면 설정부터 연다.
+            if (!askedOnce && settings.folder == null) { askedOnce = true; showSettings() }
         }
     }
 
     override fun onResume() {
         super.onResume()
-        // 파일 선택창 따위에서 돌아오면 막대가 다시 나와 있을 수 있다.
         hideBars()
         chime.resume()
         // 읽고 돌아오면 받아 둔 표시가 바뀔 수 있다.
@@ -144,7 +145,14 @@ class DocListActivity : Activity() {
             docs = store.loadIndex()
             render()
         }
-        showHeldUpdate()
+    }
+
+    /** 팝업이 떠 있으면 뒤로 가기는 팝업만 닫는다. */
+    @Deprecated("프레임워크 Activity 를 쓰므로 이 갈래가 맞다")
+    override fun onBackPressed() {
+        if (popup.isShowing) { popup.dismiss(); return }
+        @Suppress("DEPRECATION")
+        super.onBackPressed()
     }
 
     override fun onPause() {
@@ -176,57 +184,17 @@ class DocListActivity : Activity() {
         if (v is android.widget.Button) {
             v.gravity = Gravity.CENTER
             Shade.applyTo(v)
-            // 오른쪽 것들은 활용공간의 오른쪽 끝에, 왼쪽 것은 왼쪽 끝에 세운다.
-            val toStart = v.id == R.id.prev
-            v.post { Glyph.alignEdge(v, toStart) }
+            when (v.id) {
+                // ○ 는 ↩ 옆에 서므로 끝에 붙이지 않고 세로만 맞춘다(가로는 placeSettingsButton).
+                R.id.settings -> v.post { Glyph.centerVertical(v) }
+                // 오른쪽 것들은 활용공간의 오른쪽 끝에, 왼쪽 것은 왼쪽 끝에 세운다.
+                else -> v.post { Glyph.alignEdge(v, toStart = v.id == R.id.prev) }
+            }
         }
     }
 
     /**
-     * 이름 바로 뒤의 © — 윗첨자 크기의 가는 이탤릭.
-     *
-     * 글자의 윗선을 이름의 윗선(대문자 높이)에 맞춘다. 글자가 작아 누르기
-     * 어려우므로 누르는 자리는 머리 높이 전체와 오른쪽으로 넉넉히 넓힌다.
-     */
-    private fun setUpAbout() {
-        geist(about, ABOUT_DP)
-        about.gravity = Gravity.CENTER
-        about.setPadding(Ink.dp(this, 1f).toInt(), 0, 0, 0)
-        Shade.applyTo(about)
-        about.post {
-            val r = Rect()
-            title.paint.getTextBounds(title.text.toString(), 0, title.text.length, r)
-            val titleTop = title.baseline + r.top
-            about.paint.getTextBounds("\u00A9", 0, 1, r)
-            about.translationY = (titleTop - (about.baseline + r.top)).toFloat()
-            // 누르는 자리 — 글자 둘레로 넓힌다.
-            val hit = Rect()
-            about.getHitRect(hit)
-            hit.inset(-Ink.dp(this, 12f).toInt(), 0)
-            hit.top = 0
-            hit.bottom = (about.parent as View).height
-            (about.parent as View).touchDelegate = TouchDelegate(hit, about)
-        }
-    }
-
-    /** 앱 정보와 라이선스 */
-    private fun showAbout() {
-        popup.show(
-            msg = "30EBSE ${BuildConfig.VERSION_NAME}\n" +
-                "한 쪽에 한 문장씩 읽는 e-ink 리더\n\n" +
-                "에이투지체 — SIL Open Font License 1.1\n" +
-                "Geist Mono — SIL Open Font License 1.1\n" +
-                "PdfBox-Android — Apache License 2.0\n" +
-                "juniversalchardet — Mozilla Public License 1.1\n" +
-                "OkHttp — Apache License 2.0\n" +
-                "AndroidX · Kotlin Coroutines — Apache License 2.0\n\n" +
-                "github.com/marzipan2025/30EBSE",
-            ms = ABOUT_MS,
-        )
-    }
-
-    /**
-     * 활용공간 — 폭은 화면의 60%. 세로는 **리더에 맞춘다**: 머리(이름·*)의
+     * 활용공간 — 폭은 화면의 60%. 세로는 **리더에 맞춘다**: 머리(이름·○·↩)의
      * 가운데가 리더의 문장 번호 줄(위에서 15%)에, 발(화살표·쪽 번호)의 가운데가
      * 리더의 시계 줄(아래에서 15%)에 선다. 두 화면을 오갈 때 위아래 줄이 제자리에
      * 있다. 막대를 걷어 화면을 끝까지 쓰므로 비율이 곧 화면 자리다.
@@ -246,9 +214,45 @@ class DocListActivity : Activity() {
         }
     }
 
+    /**
+     * ○ 를 ↩ 쪽으로 옮긴다 — 두 먹 사이가 제자리일 때의 [SETTINGS_GAP] 이 되도록.
+     *
+     * 두 단추는 손가락 자리(56dp) 폭으로 나란히 서서, 먹 사이가 멀어 보인다. 먹의 실제
+     * 끝을 재어 옮기므로 글꼴·화면 밀도가 달라도 같은 비율이 된다. 단추째 옮기므로 글리프가
+     * 잘리지 않는다.
+     */
+    private fun placeSettingsButton() {
+        val a = inkX(btnSettings) ?: return
+        val b = inkX(btnRefresh) ?: return
+        val gap = b.first - a.second
+        if (gap <= 0f) return
+        btnSettings.translationX += gap * (1f - SETTINGS_GAP)
+    }
+
+    /** 단추 글리프 먹의 가로 범위 — 화면 좌표(옮김 포함) */
+    private fun inkX(v: TextView): Pair<Float, Float>? {
+        val t = v.text?.toString().orEmpty()
+        if (t.isEmpty() || v.width == 0) return null
+        val r = android.graphics.Rect()
+        v.paint.getTextBounds(t, 0, t.length, r)
+        val loc = IntArray(2).also { v.getLocationOnScreen(it) }
+        val start = loc[0] + (v.width - v.paint.measureText(t)) / 2f
+        return (start + r.left) to (start + r.right)
+    }
+
+    /** 설정 팝업이 채울 자리 — 활용공간 가운데 머리 줄과 발 줄 사이(칸들이 놓이는 곳) */
+    private fun contentArea(): android.graphics.Rect {
+        val rl = IntArray(2).also { rows.getLocationInWindow(it) }
+        val ro = IntArray(2).also { root.getLocationInWindow(it) }
+        val left = rl[0] - ro[0]
+        val top = rl[1] - ro[1]
+        return android.graphics.Rect(left, top, left + rows.width, top + rows.height)
+    }
+
     /** 칸 하나의 높이. 놓는 칸 수를 줄여도 이 값은 그대로다 — 간격이 안 변한다. */
     private var rowH = 0
     private var measuredRowsH = 0
+    private var askedOnce = false
 
     private fun rowPx(): Int =
         if (rowH > 0) rowH else Ink.dp(this, ROW_DP).toInt()
@@ -293,6 +297,8 @@ class DocListActivity : Activity() {
         val title = row.findViewById<TextView>(R.id.name).apply {
             text = doc.name
             setTextSize(TypedValue.COMPLEX_UNIT_DIP, TITLE_DP)
+            // 받아 둔 것만 진하게 — 흑백뿐이라 색 대신 농도로 가른다.
+            alpha = if (doc.cached) 1f else UNCACHED_ALPHA
         }
         // 누르는 동안 제목 뒤를 ░ 한 줄로 채운다 — 제목보다 1dp 작게.
         LineShade.applyTo(row, title, TITLE_DP - 1f)
@@ -311,7 +317,8 @@ class DocListActivity : Activity() {
                 docs = store.loadIndex()
                 render()
                 popup.show(
-                    msg = "${doc.name}\n지웠습니다.",
+                    // 폴더에서 사라진 것은 목록에서도 빠진다. 폴더에 있는 것은 받지 않은 칸으로 남는다.
+                    msg = if (doc.gone) "${doc.name}\n지웠습니다." else "${doc.name}\n받아 둔 글을 지웠습니다.",
                     undoLabel = "Undo",
                     onUndo = {
                         store.restoreBody(doc.id)
@@ -332,139 +339,117 @@ class DocListActivity : Activity() {
         parent.addView(row)
     }
 
-    /** 문서를 연다. 들일 때 글로 풀어 두었으므로 망이 필요 없다. */
+    /** 문서를 연다. 받아 둔 것이 있으면 망 없이도 열리고, 없으면 받아서 연다. */
     private fun open(doc: Doc) {
-        if (!store.hasBody(doc.id)) return
-        startActivity(Intent(this, ReaderActivity::class.java).apply {
-            putExtra(ReaderActivity.EXTRA_ID, doc.id)
-            putExtra(ReaderActivity.EXTRA_NAME, doc.name)
-        })
-    }
-
-    /**
-     * 파일 선택창을 연다. 여러 개를 한꺼번에 고를 수 있다.
-     *
-     * 종류로 거르지 않는다(모든 종류) — md·srt 는 대개 종류 없이(octet-stream) 오기
-     * 때문이다. CATEGORY_OPENABLE 도 붙이지 않는다. 붙이면 바이트로 열 수 있는
-     * 파일만 뜨고, **구글 문서 같은 가상 파일이 빠진다.** 형식은 고른 뒤에 가린다.
-     *
-     * 드라이브 앱이 깔려 있으면 선택창 옆 서랍에 드라이브가 뜬다. 없으면 기기
-     * 안의 파일만 보인다. 우리 쪽에서 할 일은 없다.
-     *
-     * 고르는 동안 뒤에서 새 판을 본다([checkUpdate]). 알림은 선택창을
-     * 덮지 않도록 돌아온 뒤에 띄운다.
-     */
-    private fun pick() {
-        if (busy || updating?.isActive == true) return
-        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-            type = "*/*"
-            putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
-        }
-        try {
-            @Suppress("DEPRECATION")
-            startActivityForResult(intent, REQ_PICK)
-            picking = true
-        } catch (_: ActivityNotFoundException) {
-            say("이 기기에는 파일 선택창이 없습니다.")
+        if (store.hasBody(doc.id)) {
+            startActivity(Intent(this, ReaderActivity::class.java).apply {
+                putExtra(ReaderActivity.EXTRA_ID, doc.id)
+                putExtra(ReaderActivity.EXTRA_NAME, doc.name)
+            })
             return
         }
-        checkUpdate()
-    }
-
-    /** 선택창이 떠 있나 — 그동안 도착한 새 판 알림은 미뤄 둔다. */
-    private var picking = false
-
-    @Deprecated("프레임워크 Activity 를 쓰므로 이 갈래가 맞다")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        if (requestCode != REQ_PICK) {
-            @Suppress("DEPRECATION")
-            super.onActivityResult(requestCode, resultCode, data)
-            return
-        }
-        picking = false
-        val uris = ArrayList<Uri>()
-        if (resultCode == RESULT_OK && data != null) {
-            val clip = data.clipData
-            if (clip != null) for (i in 0 until clip.itemCount) clip.getItemAt(i).uri?.let { uris += it }
-            else data.data?.let { uris += it }
-        }
-        if (uris.isEmpty()) showHeldUpdate() else importAll(uris)
-    }
-
-    /**
-     * 고른 파일을 차례로 들인다. 하나만 골랐으면 들이자마자 연다.
-     * 안 되는 파일이 있어도 나머지는 계속 들이고, 끝에 모아서 알린다.
-     */
-    private fun importAll(uris: List<Uri>) {
         if (busy) return
+        if (!Net.online(this)) { say(Net.OFFLINE); return }
         var job: kotlinx.coroutines.Job? = null
+        val progress = popup.progress("${doc.name}\n받고 있습니다") { job?.cancel() }
         job = scope.launch {
             busy = true
-            val failed = ArrayList<String>()
-            var last: Doc? = null
             try {
-                for ((i, uri) in uris.withIndex()) {
-                    val head = if (uris.size > 1) "${i + 1}/${uris.size} " else ""
-                    val progress = popup.progress("${head}가져오고 있습니다") { job?.cancel() }
-                    try {
-                        last = Import.one(this@DocListActivity, store, uri, progress)
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        val name = Import.displayName(this@DocListActivity, uri)
-                        failed += "$name — " + when (e) {
-                            is Import.ImportError, is IllegalArgumentException -> e.message.orEmpty()
-                            else -> Net.explain(this@DocListActivity, e, "가져오지")
-                        }
-                    }
-                }
+                Library.body(this@DocListActivity, store, doc, progress)
+                popup.dismiss()
+                docs = store.loadIndex()
+                render()
+                open(doc)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                say(Net.explain(this@DocListActivity, e, "글을 받지"))
             } finally {
                 busy = false
+            }
+        }
+    }
+
+    // ── 설정 ─────────────────────────────────────────────
+
+    /**
+     * 설정 팝업(○). 드라이브 폴더 링크 하나를 넣는다.
+     *
+     * **링크를 바꾸면 이전 폴더의 것은 모두 지운다** — 목록·받아 둔 글·사진·읽던 자리.
+     * 그리고 새 폴더를 곧바로 읽는다. 같은 링크를 다시 저장하면 새로고침만 한다.
+     */
+    private fun showSettings() {
+        popup.settings(
+            area = contentArea(),
+            label = "구글 드라이브 폴더 링크\n폴더를 '링크가 있는 모든 사용자' 로\n공유한 뒤 그 링크를 넣으세요.",
+            value = settings.folderLink,
+            hint = "https://drive.google.com/drive/folders/…",
+            footer = FOOTER.format(BuildConfig.VERSION_NAME),
+        ) { link ->
+            if (link == settings.folderLink) { if (link.isNotEmpty()) refresh(); return@settings }
+            if (link.isNotEmpty() && PublicDrive.parse(link) == null) {
+                say("폴더 링크를 알아볼 수 없습니다.\n드라이브에서 복사한 링크를 그대로 넣어 주세요.")
+                return@settings
+            }
+            store.wipe()
+            settings.folderLink = link
+            docs = emptyList()
+            page = 0
+            render()
+            if (link.isNotEmpty()) refresh()
+        }
+    }
+
+    // ── 새로고침 ─────────────────────────────────────────
+
+    /**
+     * ↩ — 폴더를 다시 읽어 목록을 맞추고([Library.sync]), 앱의 새 판도 본다.
+     * 목록이 실패했으면 그 까닭을 알리는 팝업을 덮지 않도록 새 판은 보지 않는다.
+     */
+    private fun refresh() {
+        if (busy || updating?.isActive == true) return
+        val folder = settings.folder ?: run { showSettings(); return }
+        if (!Net.online(this)) { say(Net.OFFLINE); return }
+        scope.launch {
+            busy = true
+            render()
+            popup.progress("폴더를 읽고 있습니다") { }
+            try {
+                Library.sync(this@DocListActivity, store, folder)
                 popup.dismiss()
                 docs = store.loadIndex()
                 page = 0
+                checkUpdate()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                say(Net.explain(this@DocListActivity, e, "폴더를 읽지"))
+            } finally {
+                busy = false
                 render()
-            }
-            when {
-                failed.isNotEmpty() -> popup.show(failed.joinToString("\n\n"), ms = FAIL_MS,
-                    onExpire = { showHeldUpdate() })
-                // 새 판 알림은 리더에서 돌아온 뒤 onResume 이 띄운다.
-                uris.size == 1 && last != null -> open(last)
-                else -> showHeldUpdate()
             }
         }
     }
 
-    /** 새 판을 받는 중인 일. 받는 동안에는 * 를 막는다 — 팝업이 덮인다. */
+    /** 새 판을 받는 중인 일. 받는 동안에는 새로고침을 막는다 — 팝업이 덮인다. */
     private var updating: kotlinx.coroutines.Job? = null
 
     /**
-     * GitHub 릴리스에 새 판이 있는지 본다. * 를 누를 때마다 뒤에서 돈다.
-     * 익명 GitHub API 는 IP 당 시간에 60번까지라 손으로 누르는 빈도로는 닿지 않는다.
-     * 있으면 설치할지 묻는다(왼쪽에 Install, 닫기는 늘 오른쪽). 없거나 알 수 없으면
-     * 조용히 넘어간다.
+     * GitHub 릴리스에 새 판이 있으면 설치할지 묻는다. 없거나 알 수 없으면 조용히 넘어간다.
+     * 왼쪽 단추 자리에 Install, 닫기는 늘 오른쪽.
      */
     private fun checkUpdate() {
         if (!Net.online(this)) return
         scope.launch {
-            heldRelease = Updater.check(BuildConfig.VERSION_NAME) ?: return@launch
-            if (!picking && !busy) showHeldUpdate()
+            val r = Updater.check(BuildConfig.VERSION_NAME) ?: return@launch
+            if (isFinishing || busy) return@launch
+            popup.show(
+                msg = "새 버전 ${r.version}${subjectParticle(r.version)} 있습니다.\n지금 설치할까요?",
+                undoLabel = INSTALL,
+                onUndo = { startUpdate(r) },
+                ms = UPDATE_MS,
+            )
         }
-    }
-
-    /** 선택창·가져오기가 끝나기를 기다리는 새 판 */
-    private var heldRelease: Updater.Release? = null
-
-    private fun showHeldUpdate() {
-        val r = heldRelease ?: return
-        if (isFinishing || picking || busy) return
-        heldRelease = null
-        popup.show(
-            msg = "새 버전 ${r.version}${subjectParticle(r.version)} 있습니다.\n지금 설치할까요?",
-            undoLabel = INSTALL,
-            onUndo = { startUpdate(r) },
-            ms = UPDATE_MS,
-        )
     }
 
     /**
@@ -478,13 +463,11 @@ class DocListActivity : Activity() {
     private fun startUpdate(r: Updater.Release) {
         if (!Updater.canInstall(this)) {
             popup.show(
-                msg = "설치하려면 이 앱에 설치 권한이 필요합니다.\n켜고 돌아와 다시 설치해 주세요.",
+                msg = "설치하려면 이 앱에 설치 권한이 필요합니다.\n켜고 돌아와 ↩ 를 다시 눌러 주세요.",
                 undoLabel = SETTINGS,
                 onUndo = { Updater.openInstallSettings(this) },
                 ms = UPDATE_MS,
             )
-            // 켜고 돌아오면 다시 물을 수 있게 남겨 둔다.
-            heldRelease = r
             return
         }
         var job: kotlinx.coroutines.Job? = null
@@ -498,26 +481,16 @@ class DocListActivity : Activity() {
         updating = job
     }
 
-    private fun say(msg: String?) {
-        if (msg == null) { status = null; showStatus(); return }
-        popup.show(msg)
-    }
+    private fun say(msg: String) = popup.show(msg)
 
     private companion object {
+        /** ○ 와 ↩ 사이(먹과 먹 사이)를 기본 자리의 이만큼으로 좁힌다 */
+        const val SETTINGS_GAP = 0.6f
         /** 목록 제목 글자 크기 */
         const val TITLE_DP = 14f
 
-        const val REQ_PICK = 30
-
-
-        /** 가져오지 못한 까닭을 읽을 틈 */
-        const val FAIL_MS = 10_000L
-
-        /** © 글자 크기 — 이름(20dp)의 윗첨자 */
-        const val ABOUT_DP = 12f
-
-        /** 앱 정보는 천천히 읽는다 — Close 로 닫는다 */
-        const val ABOUT_MS = 60_000L
+        /** 받지 않은 칸 제목의 옅기 */
+        const val UNCACHED_ALPHA = 0.55f
 
         /** 업데이트 팝업의 왼쪽 단추 */
         const val INSTALL = "Install"
@@ -526,19 +499,26 @@ class DocListActivity : Activity() {
         /** 업데이트를 묻는 팝업이 머무는 시간 — 읽고 누를 틈 */
         const val UPDATE_MS = 10_000L
 
-
         /** 누를 수 없는 화살표의 옅기 */
         const val DIM = 0.5f
 
         /** 칸 높이 — 손가락 자리(56dp)의 80% */
         const val ROW_DP = Ink.TOUCH_DP * 0.8f
+
+        /** 설정 팝업 아래의 저작권·라이선스 */
+        const val FOOTER = "30EBSE %s · © artbrain\n" +
+            "에이투지체 · Geist Mono — SIL Open Font License 1.1\n" +
+            "PdfBox-Android · OkHttp · AndroidX — Apache License 2.0\n" +
+            "juniversalchardet — Mozilla Public License 1.1\n" +
+            "github.com/marzipan2025/30EBSE"
     }
 
     private fun showStatus() {
         val msg = when {
             // 목록이 있으면 받는 중인 것은 팝업이 알린다. 칸 위에 겹쳐 쓰지 않는다.
-            busy && docs.isEmpty() -> "가져오고 있습니다…"
-            docs.isEmpty() -> "* 을 눌러 읽을 파일을 고르세요.\npdf · docx · txt · epub · md · srt"
+            busy && docs.isEmpty() -> "폴더를 읽고 있습니다…"
+            settings.folder == null -> "○ 를 눌러 구글 드라이브 폴더 링크를 넣어 주세요."
+            docs.isEmpty() -> "↩ 를 눌러 폴더의 문서를 받아오세요.\npdf · docx · txt · epub · md · srt · 구글 문서"
             else -> null
         }
         empty.text = msg.orEmpty()

@@ -38,6 +38,9 @@ object Net {
     /** 무엇을 하려다 난 일인지 붙여 사람 말로 돌려준다. */
     fun explain(ctx: Context, e: Throwable, doing: String): String = when {
         !online(ctx) || isOffline(e) -> OFFLINE
+        // 드라이브가 알려 준 까닭(권한·링크)과 파일을 풀지 못한 까닭은 그대로 알린다.
+        e is java.io.IOException && e.message?.contains('\n') == true -> e.message!!
+        e is IllegalArgumentException && !e.message.isNullOrBlank() -> e.message!!
         else -> "$doing 못했습니다.\n잠시 뒤에 다시 시도해 주세요."
     }
 }

@@ -63,6 +63,19 @@
         android:textColor="@color/ink_press"
         android:visibility="gone" />
 
+    <!-- 드라이브에서 다시 받기 — 폴더에 남아 있는 문서에서만 보인다(ReaderActivity.checkRefresh). -->
+    <Button
+        android:id="@+id/refresh"
+        android:layout_width="@dimen/icon_box"
+        android:layout_height="@dimen/icon_box"
+        android:layout_gravity="top|end"
+        android:background="@null"
+        android:contentDescription="새로고침"
+        android:stateListAnimator="@null"
+        android:text="&#x21A9;"
+        android:textColor="@color/ink_press"
+        android:visibility="gone" />
+
     <!-- 화면 폭의 60%. 세로 자리(92%)는 코드에서 잡는다. 보이는 것은 2dp
          점선이지만 누르는 자리는 넉넉히 둔다. -->
     <com.artbrain.ebse.ui.TimelineView

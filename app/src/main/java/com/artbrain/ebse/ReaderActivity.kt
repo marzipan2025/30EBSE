@@ -22,6 +22,8 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.artbrain.ebse.net.Net
+import com.artbrain.ebse.store.Library
+import com.artbrain.ebse.store.Settings
 import com.artbrain.ebse.store.DocStore
 import com.artbrain.ebse.ui.Chime
 import com.artbrain.ebse.ui.Eink
@@ -75,6 +77,7 @@ class ReaderActivity : Activity() {
     private lateinit var backHint: TextView
     private lateinit var clock: TextView
     private lateinit var toList: TextView
+    private lateinit var refreshBtn: TextView
     private lateinit var timeline: TimelineView
 
     private lateinit var bars: WindowInsetsControllerCompat
@@ -107,6 +110,7 @@ class ReaderActivity : Activity() {
         backHint = findViewById(R.id.backHint)
         clock = findViewById(R.id.clock)
         toList = findViewById(R.id.toList)
+        refreshBtn = findViewById(R.id.refresh)
         timeline = findViewById(R.id.timeline)
         chime = Chime(this, root)
 
@@ -134,7 +138,7 @@ class ReaderActivity : Activity() {
         // 화살표도 번호와 같은 가는 이탤릭으로. 누르는 자리(박스)는 그대로
         // 두고 글자만 키운다 — 손가락이 닿는 넓이는 지키면서 눈에는 크게.
         val geistItalic = Fonts.of(this, Fonts.UI)
-        for (b in listOf(toList)) {
+        for (b in listOf(toList, refreshBtn)) {
             b.typeface = geistItalic
             b.fontVariationSettings = Fonts.THIN
             b.setTextSize(TypedValue.COMPLEX_UNIT_DIP, GLYPH_DP)
@@ -142,10 +146,12 @@ class ReaderActivity : Activity() {
             b.gravity = Gravity.CENTER
             Shade.applyTo(b)
             // 먹의 바깥 끝을 글 상자(화면 폭 60%)의 끝에 세운다 — 목록의 이름과
-            // * 가 서는 폭과 같다. 화면이 길쭉한 기기에서도 안쪽으로 몰리지
+            // ↩ 가 서는 폭과 같다. 화면이 길쭉한 기기에서도 안쪽으로 몰리지
             // 않는다. 단추는 처음에 GONE 이라 폭이 없으므로 자리가 잡힐 때마다 잰다.
             b.addOnLayoutChangeListener { v, _, _, _, _, _, _, _, _ ->
-                Glyph.alignEdge(v as TextView, toStart = true)
+                Glyph.alignEdge(v as TextView, toStart = v === toList)
+                // 시각 보정 — ↩ 는 먹이 위로 쏠려 보여 ↰ 보다 떠 보인다.
+                if (v === refreshBtn) v.translationY += Ink.dp(this, REFRESH_NUDGE_DP)
             }
         }
 
@@ -153,6 +159,7 @@ class ReaderActivity : Activity() {
         pageView.onPaginated = { updateChrome() }
 
         toList.setOnClickListener { finish() }
+        refreshBtn.setOnClickListener { refresh(); keepUiAwake() }
         timeline.onSeek = { p -> pageView.page = p; afterTurn(); keepUiAwake() }
 
         // 막대를 숨기려고 화면 끝까지 쓰게 해 두었으므로(setDecorFitsSystemWindows
@@ -198,12 +205,13 @@ class ReaderActivity : Activity() {
 
         val body = store.readBody(docId)
         if (body == null) {
-            say("글을 찾을 수 없습니다. 목록에서 * 로 다시 가져와 주세요.")
+            say("받아 둔 글이 없습니다. 목록에서 다시 열어 주세요.")
             setUiVisible(true)
         } else {
             pageView.setDocument(body, store.loadPos(docId), store.imageDir(docId))
             setUiVisible(false)
         }
+        checkRefresh()
     }
 
     override fun onResume() {
@@ -351,7 +359,7 @@ class ReaderActivity : Activity() {
         val boxH = toList.height.takeIf { it > 0 } ?: Ink.dp(this, 56f).toInt()
         val topM = ((h * NUMBER_Y).toInt() - boxH / 2).coerceAtLeast(barTop)
         val side = ((root.width - root.width * Ink.BOX_FRACTION) / 2).toInt()
-        for (b in listOf(toList)) {
+        for (b in listOf(toList, refreshBtn)) {
             (b.layoutParams as FrameLayout.LayoutParams).let {
                 it.topMargin = topM
                 it.marginStart = side
@@ -399,6 +407,7 @@ class ReaderActivity : Activity() {
     private fun setUiVisible(show: Boolean) {
         val v = if (show) View.VISIBLE else View.GONE
         toList.visibility = v
+        refreshBtn.visibility = if (show && canRefresh) View.VISIBLE else View.GONE
         timeline.visibility = v
         clock.visibility = if (show) View.INVISIBLE else View.VISIBLE
         uiShown = show
@@ -421,6 +430,40 @@ class ReaderActivity : Activity() {
         hand.postDelayed(hideUi, UI_TIMEOUT_MS)
     }
 
+    /** 드라이브에서 다시 받을 수 있는가. 폴더에서 사라진 문서([Doc.gone])는 받을 곳이 없다. */
+    private var canRefresh = false
+    private var busy = false
+
+    private fun checkRefresh() {
+        val doc = store.loadIndex().firstOrNull { it.id == docId }
+        canRefresh = doc != null && !doc.gone && Settings(this).folder != null
+        if (uiShown) refreshBtn.visibility = if (canRefresh) View.VISIBLE else View.GONE
+    }
+
+    /** 이 문서를 드라이브에서 다시 받는다. 읽던 자리는 지킨다. */
+    private fun refresh() {
+        if (busy || docId.isEmpty()) return
+        if (!Net.online(this)) { say(Net.OFFLINE); return }
+        val doc = store.loadIndex().firstOrNull { it.id == docId } ?: return
+        var job: kotlinx.coroutines.Job? = null
+        val progress = popup.progress("다시 받고 있습니다") { job?.cancel() }
+        job = scope.launch {
+            busy = true
+            try {
+                val text = Library.body(this@ReaderActivity, store, doc, progress)
+                pageView.setDocument(text, pageView.page, store.imageDir(docId))
+                popup.dismiss()
+                say("다시 받았습니다.")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                say(Net.explain(this@ReaderActivity, e, "글을 다시 받지"))
+            } finally {
+                busy = false
+            }
+        }
+    }
+
     private fun say(msg: String) = popup.show(msg)
 
     /**
@@ -436,6 +479,9 @@ class ReaderActivity : Activity() {
     )
 
     companion object {
+        /** 새로고침 ↩ 를 내리는 시각 보정 */
+        private const val REFRESH_NUDGE_DP = 2f
+
         const val EXTRA_ID = "id"
         const val EXTRA_NAME = "name"
 
