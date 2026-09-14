@@ -19,7 +19,7 @@ class PdfTest {
         PDFBoxResourceLoader.init(ins.targetContext)
         val f = File(ins.targetContext.cacheDir, "t.pdf")
         ins.context.assets.open("doc.pdf").use { i -> f.outputStream().use { i.copyTo(it) } }
-        val t = Import.tidy(Import.pdf(f))
+        val t = com.artbrain.ebse.text.Convert.text(com.artbrain.ebse.text.Convert.PDF, f)
         android.util.Log.i("PdfTest", t)
         val long = ("종이 폭에서 줄이 끊기는 긴 문장을 시험합니다. ".repeat(6)).trim()
         assertEquals("$long\n\n둘째 문단은 짧습니다.", t)

@@ -119,6 +119,18 @@ object Updater {
             }
         }
 
+    /**
+     * 설치를 마친 APK 를 치운다. 받은 APK 는 시스템 설치 화면이 읽는 동안 남아 있어야 해서
+     * 받을 때 지울 수 없고, 그대로 두면 판마다 수 MB 가 캐시에 쌓인다(실측: 0.2.8 APK 8.8MB).
+     * 지금 깔린 판보다 **새것이 아닌** 것만 지운다 — 설치를 기다리는 새 판은 건드리지 않는다.
+     */
+    fun cleanup(ctx: Context, current: String) {
+        File(ctx.cacheDir, "update").listFiles()?.forEach { f ->
+            val v = f.name.substringAfterLast('-').removeSuffix(".apk")
+            if (!isNewer(v, current)) f.delete()
+        }
+    }
+
     /** 이 앱이 다른 앱을 설치해도 되는가("출처를 알 수 없는 앱" 허용). */
     fun canInstall(ctx: Context) = ctx.packageManager.canRequestPackageInstalls()
 

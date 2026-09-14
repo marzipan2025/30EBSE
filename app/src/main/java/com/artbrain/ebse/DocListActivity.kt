@@ -113,6 +113,8 @@ class DocListActivity : Activity() {
 
         // 지난번에 치워 둔 것은 되돌릴 기회가 지났다. 여기서 쓸어 낸다.
         store.purgeAll()
+        // 지난번 업데이트로 받은 APK 도 설치가 끝났으면 치운다.
+        Updater.cleanup(this, BuildConfig.VERSION_NAME)
         docs = store.loadIndex()
 
         // 한 쪽에 몇 칸이 들어가는지는 자리를 잡은 뒤에야 안다.

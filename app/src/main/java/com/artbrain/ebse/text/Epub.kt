@@ -207,9 +207,8 @@ class Epub(private val read: (path: String) -> ByteArray?) {
     // ── 경로·글 ──────────────────────────────────────────
 
     private fun text(path: String): String? = read(path)?.let { bytes ->
-        var s = String(bytes, Charsets.UTF_8)
-        if (s.startsWith("﻿")) s = s.substring(1)
-        s
+        // UTF-8 이 원칙이지만 옛 한국 epub 은 euc-kr 로 밝혀 둔 것이 있다.
+        Convert.decodeMarkup(bytes).removePrefix("﻿")
     }
 
     private fun dir(path: String) = path.substringBeforeLast('/', "")

@@ -27,11 +27,15 @@ enable freezing after installing an app`** 을 꺼 두는 편이 좋다.
 |---|---|
 | **구글 문서** | 드라이브 앱이 PDF 로 내준 것을 PdfBox 로 글만 뽑는다 |
 | pdf | PdfBox. 종이 폭에서 끊긴 줄은 도로 잇고 문단은 살린다 |
-| docx | `word/document.xml` 의 문단(`w:p`)마다 글 토막(`w:t`)을 모은다 |
-| txt | 인코딩을 알아맞힌다 — UTF-8·UTF-16·EUC-KR·MS949 … |
+| docx | `word/document.xml` 의 문단(`w:p`)마다 한 줄. 줄마다 Enter 친 문서도 문장이 이어진다 |
+| txt | 인코딩을 알아맞힌다 — UTF-8·UTF-16·EUC-KR·MS949 … (epub 속 글도 같다) |
 | md | 문법(`#` `**` 링크·그림·코드 표시)을 걷는다. 제목·목록 줄은 제 문단 |
-| srt | 번호·시각을 걷고 대사만. 끝 부호나 1.5초 넘는 쉼에서 문단을 가른다 |
+| srt | 번호·시각을 걷고 대사만. **자막 한 칸이 한 문단**, 그 안에서 문장을 가른다 |
 | epub | 글과 사진으로 풀어 둔다(아래 "epub") |
+
+형식마다 글을 푸는 일은 `text/Convert.kt` 가 한다. **29EBWO 와 같은 파일**이라(패키지 이름만
+다르다) 한쪽을 고치면 다른 쪽에도 옮긴다. 목록 이름에는 확장자를 남긴다(epub 만 뗀다) —
+같은 이름의 구글 문서와 docx 를 가르기 위해서다.
 
 **원본을 붙들지 않는다.** 고른 순간 글로 풀어 앱 폴더에 두고 끝낸다(`Import`). 원본이
 지워지거나 망이 끊겨도 읽을 수 있고, 저장소 권한도 들지 않는다. **같은 이름을 다시
@@ -53,13 +57,16 @@ enable freezing after installing an app`** 을 꺼 두는 편이 좋다.
 ## 시험
 
 ```
-./gradlew testDebugUnitTest                       # txt·md·srt·docx·줄 잇기 (JVM)
-./gradlew assembleDebug assembleDebugAndroidTest  # PDF 는 기기에서 — PdfBox 가 JVM 에서 안 돈다
+./gradlew testDebugUnitTest                       # txt·md·srt·docx·인코딩·줄 잇기 (JVM)
+./gradlew assembleDebug assembleDebugAndroidTest  # 같은 변환 + PDF 를 기기에서 (ConvertDeviceTest·PdfTest)
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 adb shell pm enable com.artbrain.ebse.debug && adb shell pm enable com.artbrain.ebse.debug.test
 adb shell am instrument -w com.artbrain.ebse.debug.test/androidx.test.runner.AndroidJUnitRunner
 ```
+
+**기기 시험을 빼먹지 않는다.** 안드로이드의 정규식(ICU)은 JVM 보다 엄격해 `{[^}]*}` 처럼
+`}` `]` 를 막지 않은 식을 문법 오류로 던진다 — JVM 시험은 통과했는데 기기에서 srt 가 실패했다.
 
 디버그 판은 `com.artbrain.ebse.debug` 라 릴리스 판(다른 키)과 한 기기에 같이 깔린다.
 시험 파일은 `app/src/test/resources/` · `app/src/androidTest/assets/`.
