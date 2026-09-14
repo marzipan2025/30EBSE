@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 모든 것이 '활용공간' 안에 든다. 그 네모의 크기(폭 60% · 높이 80%)는
+     화면에서 재어 코드가 잡는다. 화면 비율로 흩어 놓지 않는다. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/white">
+
+    <LinearLayout
+        android:id="@+id/box"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_gravity="center"
+        android:orientation="vertical">
+
+        <!-- 머리 — 왼쪽에 이름과 ©, 오른쪽에 * (파일 고르기) -->
+        <FrameLayout
+            android:id="@+id/head"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/touch">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_gravity="start"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/title"
+                    android:layout_width="wrap_content"
+                    android:layout_height="match_parent"
+                    android:gravity="center_vertical"
+                    android:includeFontPadding="false"
+                    android:text="@string/app_name"
+                    android:textColor="@android:color/black" />
+
+                <!-- 윗첨자 크기의 이탤릭 © — 앱 정보와 라이선스. 글자는 작아도
+                     누르는 자리는 머리 높이를 다 쓴다. -->
+                <TextView
+                    android:id="@+id/about"
+                    android:layout_width="wrap_content"
+                    android:layout_height="match_parent"
+                    android:contentDescription="앱 정보"
+                    android:gravity="top"
+                    android:includeFontPadding="false"
+                    android:text="&#xA9;"
+                    android:textColor="@color/ink_press" />
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/pick"
+                android:layout_width="@dimen/touch"
+                android:layout_height="match_parent"
+                android:layout_gravity="end"
+                android:background="@null"
+                android:contentDescription="파일 고르기"
+                android:stateListAnimator="@null"
+                android:text="*"
+                android:textColor="@color/ink_press" />
+        </FrameLayout>
+
+        <LinearLayout
+            android:id="@+id/rows"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical" />
+
+        <!-- 발 — 좌우 끝에 화살표, 가운데에 쪽 번호 -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/touch">
+
+            <Button
+                android:id="@+id/prev"
+                android:layout_width="@dimen/arrow_touch"
+                android:layout_height="match_parent"
+                android:layout_gravity="start"
+                        android:background="@null"
+        android:contentDescription="이전"
+                android:stateListAnimator="@null"
+                android:text="&#x2190;"
+                android:textColor="@color/ink_press" />
+
+            <TextView
+                android:id="@+id/number"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:includeFontPadding="false"
+                android:textColor="@android:color/black" />
+
+            <Button
+                android:id="@+id/next"
+                android:layout_width="@dimen/arrow_touch"
+                android:layout_height="match_parent"
+                android:layout_gravity="end"
+                        android:background="@null"
+        android:contentDescription="다음"
+                android:stateListAnimator="@null"
+                android:text="&#x2192;"
+                android:textColor="@color/ink_press" />
+        </FrameLayout>
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/empty"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:gravity="center"
+        android:padding="@dimen/gap"
+        android:textColor="@color/ink_press"
+        android:textSize="13sp"
+        android:visibility="gone" />
+</FrameLayout>

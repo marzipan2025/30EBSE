@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 기호는 누를 때도 검은색 그대로다. 눌렸다는 표시는 뒤에 깔리는 ░ 가 맡는다
+     (Shade). 글자까지 옅어지면 무늬에 묻혀 안 보인다. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:color="#FF000000" />
+</selector>

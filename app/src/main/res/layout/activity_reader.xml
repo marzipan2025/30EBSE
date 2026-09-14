@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/white">
+
+    <com.artbrain.ebse.ui.PageView
+        android:id="@+id/page"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!-- 문장 번호. 조작판과 무관하게 늘 떠 있다. 세로 자리는 화면 15% 에
+         맞추어 코드에서 잡는다. -->
+    <TextView
+        android:id="@+id/number"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top"
+        android:gravity="center_horizontal"
+        android:alpha="0.8"
+        android:includeFontPadding="false"
+        android:paddingStart="10dp"
+        android:paddingEnd="10dp"
+        android:textColor="@android:color/black" />
+
+    <!-- 조작판이 꺼져 있을 때만 보이는 시계. 자리는 코드에서 잡는다.
+         망이 없으면 검은 네모에 흰 Offline 이 되므로 폭은 글자만큼만. -->
+    <TextView
+        android:id="@+id/clock"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:alpha="0.8"
+        android:gravity="center_horizontal"
+        android:includeFontPadding="false"
+        android:textColor="@android:color/black" />
+
+    <!-- 이전으로 갈 때만 잠깐 뜨는 표. 번호 바로 아래 가운데. -->
+    <TextView
+        android:id="@+id/backHint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_horizontal"
+        android:layout_gravity="top"
+        android:includeFontPadding="false"
+        android:paddingStart="10dp"
+        android:paddingEnd="10dp"
+        android:text="&#x21A9;"
+        android:textColor="@android:color/black"
+        android:visibility="invisible" />
+
+    <!-- 아래 셋은 상단 30% 를 누를 때 함께 나타났다 사라진다. -->
+    <Button
+        android:id="@+id/toList"
+        android:layout_width="@dimen/icon_box"
+        android:layout_height="@dimen/icon_box"
+        android:layout_gravity="top|start"
+        android:background="@null"
+        android:contentDescription="목록"
+        android:stateListAnimator="@null"
+        android:text="&#x21B0;"
+        android:textColor="@color/ink_press"
+        android:visibility="gone" />
+
+    <!-- 화면 폭의 60%. 세로 자리(92%)는 코드에서 잡는다. 보이는 것은 2dp
+         점선이지만 누르는 자리는 넉넉히 둔다. -->
+    <com.artbrain.ebse.ui.TimelineView
+        android:id="@+id/timeline"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/touch"
+        android:layout_gravity="top|center_horizontal"
+        android:visibility="gone" />
+
+</FrameLayout>

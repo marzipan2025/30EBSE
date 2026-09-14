@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 안드로이드 12 이상은 앱이 뜨기 전에 시스템이 스플래시를 그린다. 그때는 우리
+         코드가 아직 돌지 않아 e-ink 인지 가릴 수 없고, 창을 뒤집는 반전(Eink)도
+         닿지 않는다. 그래서 스플래시만 미리 뒤집어 둔다 — 검은 바탕에 흰 아이콘(splash_icon_reverse).
+         Poke4 Lite 는 안드로이드 11 이라 이 파일을 읽지 않는다(시스템 스플래시도 없다). -->
+    <style name="Theme.Ebse" parent="Base.Theme.Ebse">
+        <item name="android:windowSplashScreenBackground">@android:color/black</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_icon_reverse</item>
+    </style>
+</resources>

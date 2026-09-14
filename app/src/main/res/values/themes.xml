@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- e-ink: 순백 바탕, 검은 글자, 장식 없음. 애니메이션은 전부 0.
+         안드로이드 12 이상은 values-v31 의 Theme.Ebse 가 이 바탕 위에 스플래시만 더한다. -->
+    <style name="Base.Theme.Ebse" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@android:color/white</item>
+        <item name="android:colorBackground">@android:color/white</item>
+        <item name="android:textColorPrimary">@android:color/black</item>
+        <item name="android:statusBarColor">@android:color/white</item>
+        <item name="android:navigationBarColor">@android:color/white</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:windowContentTransitions">false</item>
+    </style>
+
+    <style name="Theme.Ebse" parent="Base.Theme.Ebse" />
+</resources>

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 글꼴은 R.font 가 아니라 이름으로 찾는다(Fonts.of). 릴리스의 리소스 줄이기가
+     쓰이지 않는 것으로 보고 빼 버리지 않게 붙들어 둔다. -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@font/a2z_regular,@font/geist_mono,@font/geist_mono_italic,@drawable/splash_icon_reverse" />

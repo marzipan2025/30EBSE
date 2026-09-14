@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Updater 가 받아 둔 APK 를 시스템 설치기에 넘기기 위한 통로 -->
+    <cache-path name="updates" path="update/" />
+</paths>

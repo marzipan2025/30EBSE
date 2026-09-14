@@ -1,0 +1,18 @@
+# 빌드 산출물 — 어느 깊이에 있든 뺀다 (/build 만 쓰면 app/build 가 새 나간다)
+build/
+.gradle
+*.iml
+.DS_Store
+/.idea
+/captures
+.externalNativeBuild
+.cxx
+
+# 기계마다 다른 것 · 비밀
+local.properties
+/keystore.properties
+/keystore/
+/dist/
+
+# 폰트는 재배포하지 않는다 — README 의 "글꼴" 참고
+app/src/main/res/font/*.ttf
