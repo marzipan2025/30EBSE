@@ -29,7 +29,6 @@ import com.artbrain.ebse.ui.Ink
 import com.artbrain.ebse.ui.Popup
 import com.artbrain.ebse.ui.LineShade
 import com.artbrain.ebse.ui.Shade
-import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
@@ -309,8 +308,9 @@ class DocListActivity : Activity() {
         geist(del, 20f)
 
         if (doc.cached) {
-            // 메가바이트, 소수점 한 자리. 단위는 붙이지 않는다.
-            mark.text = String.format(Locale.US, "%.1f", store.bodyBytes(doc.id) / 1_048_576.0)
+            // 10KB 를 한 단위로 센 정수 — 130KB 는 13, 6,230KB 는 623. 단위는 붙이지 않는다.
+            // MB 소수점 한 자리로는 글만 든 문서가 모두 0.0·0.1 로 뭉쳐 가를 수 없었다.
+            mark.text = sizeMark(store.bodyBytes(doc.id))
             del.visibility = View.VISIBLE
             del.setOnClickListener {
                 if (!store.deleteBody(doc.id)) return@setOnClickListener
@@ -338,6 +338,10 @@ class DocListActivity : Activity() {
         row.setOnClickListener { open(doc) }
         parent.addView(row)
     }
+
+    /** 무게 표시 — 10KB(10,240바이트) 단위로 반올림. 조금이라도 있으면 0 이 아니라 1 이다. */
+    private fun sizeMark(bytes: Long): String =
+        if (bytes <= 0) "0" else maxOf(1L, (bytes + SIZE_UNIT / 2) / SIZE_UNIT).toString()
 
     /** 문서를 연다. 받아 둔 것이 있으면 망 없이도 열리고, 없으면 받아서 연다. */
     private fun open(doc: Doc) {
@@ -488,6 +492,9 @@ class DocListActivity : Activity() {
         const val SETTINGS_GAP = 0.6f
         /** 목록 제목 글자 크기 */
         const val TITLE_DP = 14f
+
+        /** 무게 표시 한 단위 — 10KB */
+        const val SIZE_UNIT = 10_240L
 
         /** 받지 않은 칸 제목의 옅기 */
         const val UNCACHED_ALPHA = 0.55f
