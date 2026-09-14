@@ -349,7 +349,7 @@ class DocListActivity : Activity() {
      * 드라이브 앱이 깔려 있으면 선택창 옆 서랍에 드라이브가 뜬다. 없으면 기기
      * 안의 파일만 보인다. 우리 쪽에서 할 일은 없다.
      *
-     * 고르는 동안 뒤에서 새 판을 본다([checkUpdateDaily]). 알림은 선택창을
+     * 고르는 동안 뒤에서 새 판을 본다([checkUpdate]). 알림은 선택창을
      * 덮지 않도록 돌아온 뒤에 띄운다.
      */
     private fun pick() {
@@ -366,7 +366,7 @@ class DocListActivity : Activity() {
             say("이 기기에는 파일 선택창이 없습니다.")
             return
         }
-        checkUpdateDaily()
+        checkUpdate()
     }
 
     /** 선택창이 떠 있나 — 그동안 도착한 새 판 알림은 미뤄 둔다. */
@@ -437,16 +437,13 @@ class DocListActivity : Activity() {
     private var updating: kotlinx.coroutines.Job? = null
 
     /**
-     * GitHub 릴리스에 새 판이 있는지 **하루에 한 번** 본다. * 를 누를 때 뒤에서 돈다.
+     * GitHub 릴리스에 새 판이 있는지 본다. * 를 누를 때마다 뒤에서 돈다.
+     * 익명 GitHub API 는 IP 당 시간에 60번까지라 손으로 누르는 빈도로는 닿지 않는다.
      * 있으면 설치할지 묻는다(왼쪽에 Install, 닫기는 늘 오른쪽). 없거나 알 수 없으면
      * 조용히 넘어간다.
      */
-    private fun checkUpdateDaily() {
+    private fun checkUpdate() {
         if (!Net.online(this)) return
-        val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
-        val now = System.currentTimeMillis()
-        if (now - prefs.getLong(KEY_LAST_CHECK, 0L) < DAY_MS) return
-        prefs.edit().putLong(KEY_LAST_CHECK, now).apply()
         scope.launch {
             heldRelease = Updater.check(BuildConfig.VERSION_NAME) ?: return@launch
             if (!picking && !busy) showHeldUpdate()
@@ -510,9 +507,6 @@ class DocListActivity : Activity() {
 
         const val REQ_PICK = 30
 
-        const val PREFS = "ebse"
-        const val KEY_LAST_CHECK = "lastUpdateCheck"
-        const val DAY_MS = 24 * 60 * 60 * 1000L
 
         /** 가져오지 못한 까닭을 읽을 틈 */
         const val FAIL_MS = 10_000L
