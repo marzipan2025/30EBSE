@@ -24,6 +24,10 @@ import android.widget.TextView
  *
  * 받는 동안은 같은 자리를 쓴다([progress]) — 왼쪽에 퍼센트, 오른쪽에 Cancel.
  * 되물을 때는 [ask] — 두 단추 모두 할 일이 있고, 저절로 닫히지 않는다.
+ *
+ * **폭은 늘 [WIDTH_DP](260dp)다.** 글이 길면 그 안에서 줄을 바꾼다. 화면이 그보다 좁으면 화면
+ * 폭까지만. 파일 이름처럼 길이를 알 수 없는 것은 [show]·[progress] 의 `name` 으로 따로 넘긴다
+ * — 이름과 글을 합쳐 네 줄 이상이 되면 이름을 말줄임(…)으로 줄여 모두 세 줄 안에 둔다.
  */
 class Popup(private val root: FrameLayout) {
 
@@ -42,6 +46,7 @@ class Popup(private val root: FrameLayout) {
         onUndo: (() -> Unit)? = null,
         onExpire: (() -> Unit)? = null,
         ms: Long = PLAIN_MS,
+        name: String? = null,
     ) {
         dismiss(runExpire = true)
         this.onExpire = onExpire
@@ -57,28 +62,14 @@ class Popup(private val root: FrameLayout) {
             addView(edge(button(CLOSE, 1f, Fonts.REGULAR) { dismiss() }, Gravity.END), lp(Gravity.END))
         }
 
-        val v = LinearLayout(ctx).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setPadding(pad, pad, pad, pad / 2)
-            background = GradientDrawable().apply {
-                setColor(Color.WHITE)
-                setStroke(Ink.dp(ctx, 1.5f).toInt(), Color.BLACK)
-            }
-            // 뒤쪽으로 누름이 새어 나가지 않게 한다.
-            isClickable = true
-            minimumWidth = Ink.dp(ctx, 260f).toInt()
-            addView(message(msg, pad))
+        val v = frame(pad).apply {
+            addView(message(msg, pad, name))
             addView(row, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT,
             ))
         }
-        root.addView(v, FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.WRAP_CONTENT,
-            FrameLayout.LayoutParams.WRAP_CONTENT,
-            Gravity.CENTER,
-        ))
+        root.addView(v, boxLp())
         box = v
         hand.removeCallbacks(hide)
         hand.postDelayed(hide, ms)
@@ -102,11 +93,7 @@ class Popup(private val root: FrameLayout) {
                 LinearLayout.LayoutParams.WRAP_CONTENT,
             ))
         }
-        root.addView(v, FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.WRAP_CONTENT,
-            FrameLayout.LayoutParams.WRAP_CONTENT,
-            Gravity.CENTER,
-        ))
+        root.addView(v, boxLp())
         box = v
         hand.removeCallbacks(hide)
     }
@@ -120,7 +107,7 @@ class Popup(private val root: FrameLayout) {
      *
      * @return 퍼센트(0~100)를 받는 함수. 아무 스레드에서 불러도 된다.
      */
-    fun progress(msg: String, onCancel: () -> Unit): (Int) -> Unit {
+    fun progress(msg: String, name: String? = null, onCancel: () -> Unit): (Int) -> Unit {
         dismiss(runExpire = true)
         val pad = Ink.dp(ctx, 20f).toInt()
         val percent = label("0%")
@@ -129,17 +116,13 @@ class Popup(private val root: FrameLayout) {
             addView(edge(button(CANCEL, 1f, Fonts.REGULAR) { dismiss(); onCancel() }, Gravity.END), lp(Gravity.END))
         }
         val v = frame(pad).apply {
-            addView(message(msg, pad))
+            addView(message(msg, pad, name))
             addView(row, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT,
             ))
         }
-        root.addView(v, FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.WRAP_CONTENT,
-            FrameLayout.LayoutParams.WRAP_CONTENT,
-            Gravity.CENTER,
-        ))
+        root.addView(v, boxLp())
         box = v
         hand.removeCallbacks(hide)
 
@@ -160,19 +143,60 @@ class Popup(private val root: FrameLayout) {
             setColor(Color.WHITE)
             setStroke(Ink.dp(ctx, 1.5f).toInt(), Color.BLACK)
         }
+        // 뒤쪽으로 누름이 새어 나가지 않게 한다.
         isClickable = true
-        minimumWidth = Ink.dp(ctx, 260f).toInt()
     }
 
-    /** 알림 글. 단추보다 한 단 작게, 줄 사이는 조금 넉넉히. */
-    private fun message(msg: String, pad: Int) = TextView(ctx).apply {
-        text = msg
+    /** 팝업 네모의 폭 — [WIDTH_DP], 화면이 더 좁으면 화면 폭 */
+    private fun boxWidth(): Int {
+        val w = Ink.dp(ctx, WIDTH_DP).toInt()
+        return if (root.width in 1 until w) root.width else w
+    }
+
+    private fun boxLp() = FrameLayout.LayoutParams(boxWidth(), FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER)
+
+    /** 알림 글 한 토막. 단추보다 한 단 작게, 줄 사이는 조금 넉넉히. */
+    private fun text(t: String) = TextView(ctx).apply {
+        text = t
         setTextColor(Color.BLACK)
         gravity = Gravity.CENTER
         typeface = Fonts.of(ctx, Fonts.BODY)
         setTextSize(TypedValue.COMPLEX_UNIT_DIP, MSG_DP)
         setLineSpacing(Ink.dp(ctx, MSG_LINE_ADD_DP), 1f)
-        setPadding(0, 0, 0, pad)
+    }
+
+    /**
+     * 알림 글. [name](파일 이름 따위)이 있으면 그 줄을 위에 따로 두고, 이름과 [msg] 를 합쳐
+     * [MAX_LINES] 줄을 넘으면 이름을 말줄임으로 줄인다 — 글([msg])은 자르지 않는다.
+     */
+    private fun message(msg: String, pad: Int, name: String? = null): View {
+        val body = text(msg)
+        if (name.isNullOrEmpty()) return body.apply { setPadding(0, 0, 0, pad) }
+
+        val head = text(name)
+        val width = boxWidth() - pad * 2
+        val nameLines = linesOf(head, width)
+        val bodyLines = linesOf(body, width)
+        if (nameLines + bodyLines > MAX_LINES) {
+            head.maxLines = (MAX_LINES - bodyLines).coerceAtLeast(1)
+            head.ellipsize = android.text.TextUtils.TruncateAt.END
+        }
+        return LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, 0, 0, pad)
+            addView(head, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+            addView(body, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+        }
+    }
+
+    /** [v] 의 글이 [width] 폭에서 몇 줄이 되는가 — 그려지는 붓 그대로 잰다. */
+    private fun linesOf(v: TextView, width: Int): Int {
+        if (width <= 0) return 1
+        val t = v.text
+        return android.text.StaticLayout.Builder.obtain(t, 0, t.length, v.paint, width)
+            .setLineSpacing(v.lineSpacingExtra, v.lineSpacingMultiplier)
+            .setIncludePad(v.includeFontPadding)
+            .build().lineCount
     }
 
     /** 누를 수 없는 단추 자리 글 — 단추와 같은 꼴·같은 자리 */
@@ -252,6 +276,12 @@ class Popup(private val root: FrameLayout) {
 
     companion object {
         private const val CLOSE = "Close"
+
+        /** 팝업 네모의 폭 — 모든 팝업이 같다 */
+        const val WIDTH_DP = 260f
+
+        /** 이름과 글을 합친 줄 수가 이보다 많으면 이름을 말줄임한다 */
+        private const val MAX_LINES = 3
         private const val CANCEL = "Cancel"
 
         /** 알림 글 크기와 더하는 줄 간격 */

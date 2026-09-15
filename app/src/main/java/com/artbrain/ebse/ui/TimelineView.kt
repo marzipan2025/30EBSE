@@ -15,6 +15,7 @@ import kotlin.math.roundToInt
  *
  * 칸 하나가 한 쪽이다. 쪽이 많아 한 줄에 못 놓으면 여러 쪽을 한 칸에 묶고,
  * 칸을 누르면 그 칸이 맡은 첫 쪽으로 간다 — 어림자리로 옮기는 것이다.
+ * 맨 앞 칸은 첫 쪽, 맨 뒤 칸은 마지막 쪽이다.
  *
  * **띠는 늘 제 폭을 100% 쓴다.** 쪽이 적으면 칸을 길이 비례로 나눠 넓힌다.
  * 구석에만 짧게 붙은 띠는 게이지로 읽히지 않는다.
@@ -23,8 +24,9 @@ import kotlin.math.roundToInt
  * 칸 너비만큼의 **정사각형**으로 세운다. 점선 위에 네모 하나가 놓인 꼴이라
  * 어디쯤인지가 한눈에 들어온다 — 흑백뿐이라 모양으로 가른다.
  *
- * **쓸어 옮기기는 두지 않았다.** e-ink 에서 손가락을 따라 잇달아 고쳐
- * 그리면 잔상만 남는다. 누르는 것만 받는다.
+ * **끌면 손가락을 따라 바로 옮긴다.** 누르는 순간 그 칸으로 가고, 끄는 동안
+ * 칸이 바뀔 때마다 본문까지 그 쪽으로 넘긴다. 칸 사이의 중간값은 쓰지 않으니
+ * 다시 그리는 횟수는 칸 수를 넘지 않는다. e-ink 의 잔상은 그대로 둔다.
  */
 class TimelineView @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null,
@@ -123,15 +125,35 @@ class TimelineView @JvmOverloads constructor(
         canvas.drawRect(r, markerLine)
     }
 
+    /** 이번 누름에서 마지막으로 옮겨 간 칸. 같은 칸 안에서 움직이면 다시 옮기지 않는다. */
+    private var seekCell = -1
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        if (event.actionMasked != MotionEvent.ACTION_UP) {
-            return event.actionMasked == MotionEvent.ACTION_DOWN && count > 0
-        }
         val n = cells()
-        if (n <= 0) return false
-        val k = floor(event.x * n / width).toInt().coerceIn(0, n - 1)
-        val page = (k.toLong() * count / n).toInt().coerceIn(0, count - 1)
-        onSeek?.invoke(page)
+        if (n <= 0 || count <= 0) return false
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                // 띠 밖으로 끌려 나가도 부모가 가로채지 않게 한다.
+                parent?.requestDisallowInterceptTouchEvent(true)
+                seekCell = -1
+                seekTo(event.x, n)
+            }
+            MotionEvent.ACTION_MOVE -> seekTo(event.x, n)
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> seekCell = -1
+        }
         return true
+    }
+
+    /**
+     * 손가락이 놓인 칸의 첫 쪽으로 간다. 칸이 바뀔 때만 알린다.
+     * 맨 뒤 칸만은 그 칸의 첫 쪽이 아니라 **글의 마지막 쪽**으로 간다.
+     */
+    private fun seekTo(x: Float, n: Int) {
+        val k = floor(x * n / width).toInt().coerceIn(0, n - 1)
+        if (k == seekCell) return
+        seekCell = k
+        val page = if (k == n - 1) count - 1
+            else (k.toLong() * count / n).toInt().coerceIn(0, count - 1)
+        onSeek?.invoke(page)
     }
 }

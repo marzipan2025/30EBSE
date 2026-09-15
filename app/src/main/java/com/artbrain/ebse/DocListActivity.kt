@@ -309,7 +309,8 @@ class DocListActivity : Activity() {
                 render()
                 popup.show(
                     // 폴더에서 사라진 것은 목록에서도 빠진다. 폴더에 있는 것은 받지 않은 칸으로 남는다.
-                    msg = if (doc.gone) "${doc.name}\n지웠습니다." else "${doc.name}\n받아 둔 글을 지웠습니다.",
+                    msg = if (doc.gone) "지웠습니다." else "받아 둔 글을 지웠습니다.",
+                    name = doc.name,
                     undoLabel = "Undo",
                     onUndo = {
                         store.restoreBody(doc.id)
@@ -346,7 +347,7 @@ class DocListActivity : Activity() {
         if (busy) return
         if (!Net.online(this)) { say(Net.OFFLINE); return }
         var job: kotlinx.coroutines.Job? = null
-        val progress = popup.progress("${doc.name}\n받고 있습니다") { job?.cancel() }
+        val progress = popup.progress("받고 있습니다", name = doc.name) { job?.cancel() }
         job = scope.launch {
             busy = true
             try {
