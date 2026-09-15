@@ -239,15 +239,6 @@ class DocListActivity : Activity() {
         return (start + r.left) to (start + r.right)
     }
 
-    /** 설정 팝업이 채울 자리 — 활용공간 가운데 머리 줄과 발 줄 사이(칸들이 놓이는 곳) */
-    private fun contentArea(): android.graphics.Rect {
-        val rl = IntArray(2).also { rows.getLocationInWindow(it) }
-        val ro = IntArray(2).also { root.getLocationInWindow(it) }
-        val left = rl[0] - ro[0]
-        val top = rl[1] - ro[1]
-        return android.graphics.Rect(left, top, left + rows.width, top + rows.height)
-    }
-
     /** 칸 하나의 높이. 놓는 칸 수를 줄여도 이 값은 그대로다 — 간격이 안 변한다. */
     private var rowH = 0
     private var measuredRowsH = 0
@@ -377,31 +368,27 @@ class DocListActivity : Activity() {
     // ── 설정 ─────────────────────────────────────────────
 
     /**
-     * 설정 팝업(○). 드라이브 폴더 링크 하나를 넣는다.
-     *
-     * **링크를 바꾸면 이전 폴더의 것은 모두 지운다** — 목록·받아 둔 글·사진·읽던 자리.
-     * 그리고 새 폴더를 곧바로 읽는다. 같은 링크를 다시 저장하면 새로고침만 한다.
+     * 설정 화면(○)을 연다([SettingsActivity]). 저장하고 돌아오면 [onActivityResult] 가 목록을
+     * 다시 앉히고 폴더를 읽는다 — 링크가 바뀌었으면 설정 화면이 이미 이전 폴더의 것을 지웠다.
      */
     private fun showSettings() {
-        popup.settings(
-            area = contentArea(),
-            label = "구글 드라이브 폴더 링크\n폴더를 '링크가 있는 모든 사용자' 로\n공유한 뒤 그 링크를 넣으세요.",
-            value = settings.folderLink,
-            hint = "https://drive.google.com/drive/folders/…",
-            footer = FOOTER.format(BuildConfig.VERSION_NAME),
-        ) { link ->
-            if (link == settings.folderLink) { if (link.isNotEmpty()) refresh(); return@settings }
-            if (link.isNotEmpty() && PublicDrive.parse(link) == null) {
-                say("폴더 링크를 알아볼 수 없습니다.\n드라이브에서 복사한 링크를 그대로 넣어 주세요.")
-                return@settings
+        @Suppress("DEPRECATION")
+        startActivityForResult(Intent(this, SettingsActivity::class.java), REQ_SETTINGS)
+    }
+
+    @Deprecated("프레임워크 Activity 를 쓰므로 이 갈래가 맞다")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (requestCode == REQ_SETTINGS) {
+            if (resultCode == RESULT_OK) {
+                docs = store.loadIndex()
+                page = 0
+                render()
+                if (settings.folder != null) refresh()
             }
-            store.wipe()
-            settings.folderLink = link
-            docs = emptyList()
-            page = 0
-            render()
-            if (link.isNotEmpty()) refresh()
+            return
         }
+        @Suppress("DEPRECATION")
+        super.onActivityResult(requestCode, resultCode, data)
     }
 
     // ── 새로고침 ─────────────────────────────────────────
@@ -512,12 +499,8 @@ class DocListActivity : Activity() {
         /** 칸 높이 — 손가락 자리(56dp)의 80% */
         const val ROW_DP = Ink.TOUCH_DP * 0.8f
 
-        /** 설정 팝업 아래의 저작권·라이선스 */
-        const val FOOTER = "30EBSE %s · © artbrain\n" +
-            "에이투지체 · Geist Mono — SIL Open Font License 1.1\n" +
-            "PdfBox-Android · OkHttp · AndroidX — Apache License 2.0\n" +
-            "juniversalchardet — Mozilla Public License 1.1\n" +
-            "github.com/marzipan2025/30EBSE"
+        /** 설정 화면을 연 요청 */
+        const val REQ_SETTINGS = 1
     }
 
     private fun showStatus() {

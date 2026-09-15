@@ -6,11 +6,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.TypedValue
 import android.view.Gravity
-import android.text.InputType
-import android.view.inputmethod.EditorInfo
-import android.view.inputmethod.InputMethodManager
 import android.view.View
-import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -27,6 +23,7 @@ import android.widget.TextView
  * 검게 둔다.
  *
  * 받는 동안은 같은 자리를 쓴다([progress]) — 왼쪽에 퍼센트, 오른쪽에 Cancel.
+ * 되물을 때는 [ask] — 두 단추 모두 할 일이 있고, 저절로 닫히지 않는다.
  */
 class Popup(private val root: FrameLayout) {
 
@@ -88,6 +85,33 @@ class Popup(private val root: FrameLayout) {
     }
 
     /**
+     * 되묻는다. 왼쪽 [leftLabel] 과 오른쪽 [rightLabel] 둘 다 할 일이 있고, 저절로 닫히지 않는다
+     * — 고르기 전에 사라지면 무엇이 됐는지 알 수 없다. 누르면 닫고 그 일을 한다.
+     */
+    fun ask(msg: String, leftLabel: String, onLeft: () -> Unit, rightLabel: String, onRight: () -> Unit) {
+        dismiss(runExpire = true)
+        val pad = Ink.dp(ctx, 20f).toInt()
+        val row = FrameLayout(ctx).apply {
+            addView(edge(button(leftLabel, 1f, Fonts.REGULAR) { dismiss(runExpire = false); onLeft() }, Gravity.START), lp(Gravity.START))
+            addView(edge(button(rightLabel, 1f, Fonts.REGULAR) { dismiss(runExpire = false); onRight() }, Gravity.END), lp(Gravity.END))
+        }
+        val v = frame(pad).apply {
+            addView(message(msg, pad))
+            addView(row, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ))
+        }
+        root.addView(v, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            Gravity.CENTER,
+        ))
+        box = v
+        hand.removeCallbacks(hide)
+    }
+
+    /**
      * 받는 동안 띄운다. 왼쪽 되돌리기 자리에 퍼센트를, 오른쪽에 Cancel 을 둔다.
      * 저절로 닫히지 않는다 — 끝나면 [dismiss] 로 닫는다.
      *
@@ -126,91 +150,6 @@ class Popup(private val root: FrameLayout) {
                 if (box === v && q != shown) { shown = q; percent.text = "$q%" }
             }
         }
-    }
-
-    /**
-     * 설정 — 목록 화면의 활용공간([area], 머리 줄과 발 줄 사이) 을 그대로 채우는 큰 팝업.
-     * 저절로 닫히지 않는다.
-     *
-     * 위에 [label] 과 입력칸 하나, 그 아래 [footer](저작권·라이선스), 맨 아래에 단추 줄.
-     * 왼쪽 `Save` 는 입력칸의 글을 [onSave] 로 넘기고 닫는다. 오른쪽 `Close` 는 고치지 않고
-     * 닫는다. 설정이 늘어나면 입력칸 아래에 줄을 더한다 — 남는 세로 자리가 넉넉하다.
-     */
-    fun settings(
-        area: android.graphics.Rect, label: String, value: String, hint: String, footer: String,
-        onSave: (String) -> Unit,
-    ) {
-        dismiss(runExpire = true)
-        val pad = Ink.dp(ctx, 20f).toInt()
-        val input = EditText(ctx).apply {
-            setText(value)
-            this.hint = hint
-            // 링크는 길다 — 한 줄로 밀지 않고 여러 줄로 감아 보인다. 줄바꿈 글자는 넣지 않는
-            // 한 줄 입력 종류로 두어 키보드에 '완료' 가 뜨게 하고, 감기만 켠다.
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI or
-                InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
-            setHorizontallyScrolling(false)
-            maxLines = INPUT_MAX_LINES
-            imeOptions = EditorInfo.IME_ACTION_DONE
-            setTextColor(Color.BLACK)
-            setHintTextColor(0x80000000.toInt())
-            typeface = Fonts.of(ctx, Fonts.UI_UPRIGHT)
-            fontVariationSettings = Fonts.REGULAR
-            setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12f)
-            val p = Ink.dp(ctx, 10f).toInt()
-            setPadding(p, p, p, p)
-            background = GradientDrawable().apply {
-                setColor(Color.WHITE)
-                setStroke(Ink.dp(ctx, 1f).toInt(), Color.BLACK)
-            }
-        }
-        fun save() {
-            hideKeyboard(input)
-            dismiss(runExpire = false)
-            onSave(input.text.toString().replace("\n", "").trim())
-        }
-        // 화면 키보드의 완료와 실제(하드웨어) Enter 둘 다 저장으로 받는다. Enter 는 **뗄 때**
-        // 저장한다 — 누를 때 닫으면 뒤따르는 떼기가 새로 포커스를 받은 머리의 단추(○)로 가서
-        // 설정이 다시 열린다(기기에서 실측).
-        input.setOnEditorActionListener { _, id, ev ->
-            when {
-                ev?.keyCode == android.view.KeyEvent.KEYCODE_ENTER -> {
-                    if (ev.action == android.view.KeyEvent.ACTION_UP) save()
-                    true
-                }
-                id == EditorInfo.IME_ACTION_DONE -> { save(); true }
-                else -> false
-            }
-        }
-
-        val row = FrameLayout(ctx).apply {
-            addView(edge(button(SAVE, 1f, Fonts.REGULAR) { save() }, Gravity.START), lp(Gravity.START))
-            addView(edge(button(CLOSE, 1f, Fonts.REGULAR) { hideKeyboard(input); dismiss() }, Gravity.END), lp(Gravity.END))
-        }
-        val v = frame(pad).apply {
-            gravity = Gravity.START
-            addView(message(label, pad / 2).apply { gravity = Gravity.START })
-            addView(input, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
-            addView(message(footer, pad).apply {
-                gravity = Gravity.START
-                setTextSize(TypedValue.COMPLEX_UNIT_DIP, FOOTER_DP)
-                setPadding(0, pad, 0, 0)
-            })
-            // 남는 세로 자리는 가운데에 두고 단추 줄을 바닥에 붙인다.
-            addView(View(ctx), LinearLayout.LayoutParams(0, 0, 1f))
-            addView(row, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
-        }
-        root.addView(v, FrameLayout.LayoutParams(area.width(), area.height(), Gravity.TOP or Gravity.START).apply {
-            leftMargin = area.left
-            topMargin = area.top
-        })
-        box = v
-        hand.removeCallbacks(hide)
-    }
-
-    private fun hideKeyboard(v: EditText) {
-        (ctx.getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as? InputMethodManager)
-            ?.hideSoftInputFromWindow(v.windowToken, 0)
     }
 
     private fun frame(pad: Int) = LinearLayout(ctx).apply {
@@ -314,13 +253,6 @@ class Popup(private val root: FrameLayout) {
     companion object {
         private const val CLOSE = "Close"
         private const val CANCEL = "Cancel"
-        private const val SAVE = "Save"
-
-        /** 설정 입력칸이 감아 보이는 최대 줄 수 */
-        private const val INPUT_MAX_LINES = 4
-
-        /** 설정 아래 저작권 글 크기 */
-        private const val FOOTER_DP = 10f
 
         /** 알림 글 크기와 더하는 줄 간격 */
         private const val MSG_DP = 12f

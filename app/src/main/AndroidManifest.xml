@@ -29,6 +29,13 @@
             android:exported="false"
             android:screenOrientation="portrait" />
 
+        <!-- 키보드가 떠도 자리를 옮기지 않는다 — 입력칸은 화면 위쪽이라 가리지 않는다. -->
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustNothing|stateHidden" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.updates"

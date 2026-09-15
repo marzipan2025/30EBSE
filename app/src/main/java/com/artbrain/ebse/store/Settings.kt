@@ -3,7 +3,7 @@ package com.artbrain.ebse.store
 import android.content.Context
 import com.artbrain.ebse.net.PublicDrive
 
-/** 설정 — 지금은 드라이브 폴더 링크 하나다. 설정 팝업(○)이 고친다. */
+/** 설정 — 지금은 드라이브 폴더 링크 하나다. 설정 화면(○, [com.artbrain.ebse.SettingsActivity])이 고친다. */
 class Settings(ctx: Context) {
 
     private val prefs = ctx.getSharedPreferences("settings", Context.MODE_PRIVATE)

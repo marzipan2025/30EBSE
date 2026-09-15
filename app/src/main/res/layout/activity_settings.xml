@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 설정 — 머리 줄(↰ · Settings · Save), 레이블과 입력칸 하나, 아래에 저작권. 자리는 코드가 화면
+     비율로 잡는다(목록·리더와 같은 줄, 같은 폭). -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/white"
+    android:focusableInTouchMode="true">
+
+    <!-- 머리 가운데 제목 — 리더의 문장 번호와 같은 꼴 -->
+    <TextView
+        android:id="@+id/title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top"
+        android:alpha="0.8"
+        android:gravity="center_horizontal"
+        android:includeFontPadding="false"
+        android:text="Settings"
+        android:textColor="@android:color/black" />
+
+    <Button
+        android:id="@+id/back"
+        android:layout_width="@dimen/icon_box"
+        android:layout_height="@dimen/icon_box"
+        android:layout_gravity="top|start"
+        android:background="@null"
+        android:contentDescription="목록"
+        android:stateListAnimator="@null"
+        android:text="&#x21B0;"
+        android:textColor="@color/ink_press" />
+
+    <Button
+        android:id="@+id/save"
+        android:layout_width="wrap_content"
+        android:layout_height="@dimen/icon_box"
+        android:layout_gravity="top|end"
+        android:background="@null"
+        android:contentDescription="저장"
+        android:stateListAnimator="@null"
+        android:text="Save"
+        android:textAllCaps="false"
+        android:textColor="@color/ink_press" />
+
+    <TextView
+        android:id="@+id/label"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:alpha="0.8"
+        android:includeFontPadding="false"
+        android:text="Google Drive URL"
+        android:textColor="@android:color/black" />
+
+    <EditText
+        android:id="@+id/link"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:background="@drawable/input_underline"
+        android:hint="구글 드라이브 공유 폴더 URL"
+        android:importantForAutofill="no"
+        android:textColor="@android:color/black"
+        android:textColorHint="#80000000" />
+
+    <TextView
+        android:id="@+id/footer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:textColor="@android:color/black" />
+</FrameLayout>
