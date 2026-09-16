@@ -83,35 +83,41 @@ object PageBuilder {
      * 들어가는 자리 가운데 가장 먼 곳을 잡되, 좋은 자리(쉼표 따위)가 그
      * 6할 뒤에 있으면 그쪽을 쓴다. 빈칸에서 아슬아슬하게 끊는 것보다
      * 쉼표에서 끊는 편이 읽기 낫고, 6할이면 자리를 크게 버리지도 않는다.
+     *
+     * **재는 일은 절반씩 좁혀 찾는다.** [fits] 는 글자를 실제로 그려 재므로
+     * 한 글자씩 늘려 가며 물으면 한 쪽을 나누는 데 글자 수만큼 재게 된다
+     * (80만 자짜리 책에서 원문의 아홉 배를 쟀다). 길수록 안 들어가는 것은
+     * 뻔하므로 들어가는 가장 긴 자리를 이분 탐색으로 한 번 찾고, 끊을 자리는
+     * 재지 않고 글자만 훑어 고른다. 고르는 결과는 같다.
      */
     private fun findCut(s: String, start: Int, fits: (String) -> Boolean): Int {
-        var best = -1        // 들어가는 가장 먼 끊을 자리
-        var bestGood = -1    // 그 가운데 좋은 자리(tier 1)
-
-        for (i in start until s.length) {
-            val t = tierAfter(s, i)
-            if (t == 0) continue
-            // `i` 뒤에서 끊는다 — 부호는 앞 조각에 남긴다.
-            val end = i + 1
-            if (!fits(s.substring(start, end).trim())) break
-            best = end
-            if (t == 1) bestGood = end
-        }
-
         // 문장 끝까지 들어가면 거기서 끝낸다.
         if (fits(s.substring(start).trim())) return s.length
+
+        // 들어가는 가장 긴 조각의 끝
+        var lo = start
+        var hi = s.length
+        while (lo < hi) {
+            val mid = (lo + hi + 1) / 2
+            if (fits(s.substring(start, mid).trim())) lo = mid else hi = mid - 1
+        }
+        val limit = lo
+
+        // 그 안에서 가장 먼 끊을 자리와, 가장 먼 좋은 자리(tier 1)
+        var best = -1
+        var bestGood = -1
+        for (i in limit - 1 downTo start) {
+            val t = tierAfter(s, i)
+            if (t == 0) continue
+            if (best < 0) best = i + 1
+            if (t == 1) { bestGood = i + 1; break }
+            if (i + 1 < (best * 0.6).toInt()) break   // 더 뒤로 가도 6할에 못 미친다
+        }
 
         if (bestGood >= 0 && bestGood >= (best * 0.6).toInt()) return bestGood
         if (best >= 0) return best
 
-        // 끊을 자리가 아예 없다 — 낱말 하나가 화면보다 긴 경우다.
-        // 들어가는 만큼 글자 수로 자른다. 한 글자도 안 들어가면 한 글자는 낸다.
-        var lo = start + 1
-        var hi = s.length
-        while (lo < hi) {
-            val mid = (lo + hi + 1) / 2
-            if (fits(s.substring(start, mid))) lo = mid else hi = mid - 1
-        }
-        return lo.coerceAtLeast(start + 1)
+        // 끊을 자리가 아예 없다 — 낱말 하나가 화면보다 길다. 들어가는 만큼 자른다.
+        return limit.coerceAtLeast(start + 1)
     }
 }

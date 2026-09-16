@@ -30,9 +30,11 @@ import com.artbrain.ebse.ui.Popup
 import com.artbrain.ebse.ui.LineShade
 import com.artbrain.ebse.ui.Shade
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.max
 
 /**
@@ -112,11 +114,16 @@ class DocListActivity : Activity() {
         // ↩ 가 끝에 붙은 뒤에(geist 가 건 post 다음) ○ 를 ↩ 쪽으로 당긴다.
         btnRefresh.post { btnRefresh.post { placeSettingsButton() } }
 
-        // 지난번에 치워 둔 것은 되돌릴 기회가 지났다. 여기서 쓸어 낸다.
-        store.purgeAll()
-        // 지난번 업데이트로 받은 APK 도 설치가 끝났으면 치운다.
-        Updater.cleanup(this, BuildConfig.VERSION_NAME)
         docs = store.loadIndex()
+        // 지난번에 치워 둔 것과 업데이트로 받아 둔 APK 를 쓸어 낸다. 사진이 많이 든
+        // 글을 지운 뒤라면 파일이 수백 개다 — 화면 그리는 실에서 하지 않는다.
+        scope.launch(Dispatchers.IO) {
+            store.purgeAll()
+            Updater.cleanup(this@DocListActivity, BuildConfig.VERSION_NAME)
+            withContext(Dispatchers.Main) {
+                if (!isFinishing && perPage > 0) { docs = store.loadIndex(); render() }
+            }
+        }
 
         // 한 쪽에 몇 칸이 들어가는지는 자리를 잡은 뒤에야 안다.
         // 통의 높이는 활용공간이 정해진 **뒤에야** 확정된다. 한 번만 재면
@@ -250,12 +257,12 @@ class DocListActivity : Activity() {
     private fun lastPage() = max(0, (docs.size - 1) / perPage)
 
     private fun render() {
-        rows.removeAllViews()
         page = page.coerceIn(0, lastPage())
 
         showStatus()
 
         if (docs.isEmpty()) {
+            rows.removeAllViews()
             number.text = ""
             btnPrev.isEnabled = false
             btnNext.isEnabled = false
@@ -266,8 +273,14 @@ class DocListActivity : Activity() {
 
         val from = page * perPage
         val to = minOf(from + perPage, docs.size)
+        // 칸을 지웠다 새로 만들지 않고 **그대로 다시 쓴다.** 새로 만들면 칸마다
+        // 레이아웃을 펴고 글꼴을 앉히느라 쪽을 넘길 때마다 화면이 한 번 걸린다
+        // (폰에서 열한 칸에 35ms). 글이 바뀌어도 칸의 꼴은 같다.
+        val need = to - from
         val inflater = LayoutInflater.from(this)
-        for (i in from until to) addRow(inflater, rows, docs[i])
+        while (rows.childCount > need) rows.removeViewAt(rows.childCount - 1)
+        while (rows.childCount < need) rows.addView(newRow(inflater, rows))
+        for (i in from until to) bindRow(rows.getChildAt(i - from), docs[i])
 
         number.text = "${page + 1}/${lastPage() + 1}"
         btnPrev.isEnabled = page > 0
@@ -278,25 +291,36 @@ class DocListActivity : Activity() {
         btnNext.alpha = if (btnNext.isEnabled) 1f else DIM
     }
 
-    private fun addRow(inflater: LayoutInflater, parent: ViewGroup, doc: Doc) {
+    /** 칸 하나의 **꼴** — 한 번만 만든다. 내용은 [bindRow] 가 넣는다. */
+    private fun newRow(inflater: LayoutInflater, parent: ViewGroup): View {
         val row = inflater.inflate(R.layout.row_doc, parent, false)
         // 칸이 통을 빈틈없이 나눠 갖게 한다 — 칸 사이에 죽은 자리가 남으면
         // 거기를 눌러도 아무 일이 없어 "안 눌린다" 로 느껴진다.
         row.layoutParams = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, rowPx())
-        val title = row.findViewById<TextView>(R.id.name).apply {
+        val title = row.findViewById<TextView>(R.id.name)
+        title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, TITLE_DP)
+        // 누르는 동안 제목 뒤를 ░ 한 줄로 채운다 — 제목보다 1dp 작게.
+        LineShade.applyTo(row, title, TITLE_DP - 1f)
+        geist(row.findViewById(R.id.mark), 14f)
+        geist(row.findViewById(R.id.del), 20f)
+        return row
+    }
+
+    /** 칸에 문서 하나를 앉힌다. */
+    private fun bindRow(row: View, doc: Doc) {
+        if (row.layoutParams.height != rowPx()) {
+            row.layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, rowPx())
+        }
+        row.findViewById<TextView>(R.id.name).apply {
             text = doc.name
-            setTextSize(TypedValue.COMPLEX_UNIT_DIP, TITLE_DP)
             // 받아 둔 것만 진하게 — 흑백뿐이라 색 대신 농도로 가른다.
             alpha = if (doc.cached) 1f else UNCACHED_ALPHA
         }
-        // 누르는 동안 제목 뒤를 ░ 한 줄로 채운다 — 제목보다 1dp 작게.
-        LineShade.applyTo(row, title, TITLE_DP - 1f)
 
         val mark = row.findViewById<TextView>(R.id.mark)
         val del = row.findViewById<TextView>(R.id.del)
-        geist(mark, 14f)
-        geist(del, 20f)
 
         if (doc.cached) {
             // 10KB 를 한 단위로 센 정수 — 130KB 는 13, 6,230KB 는 623. 단위는 붙이지 않는다.
@@ -325,10 +349,10 @@ class DocListActivity : Activity() {
         } else {
             mark.text = ""
             del.visibility = View.INVISIBLE
+            del.setOnClickListener(null)
         }
 
         row.setOnClickListener { open(doc) }
-        parent.addView(row)
     }
 
     /** 무게 표시 — 10KB(10,240바이트) 단위로 반올림. 조금이라도 있으면 0 이 아니라 1 이다. */
@@ -410,7 +434,8 @@ class DocListActivity : Activity() {
                 Library.sync(this@DocListActivity, store, folder)
                 popup.dismiss()
                 docs = store.loadIndex()
-                page = 0
+                // 보던 쪽에 그대로 둔다 — 1 쪽으로 되돌리면 방금 누른 화살표가
+                // 듣지 않은 것처럼 보인다. 목록이 짧아졌으면 render() 가 당긴다.
                 checkUpdate()
             } catch (e: CancellationException) {
                 throw e

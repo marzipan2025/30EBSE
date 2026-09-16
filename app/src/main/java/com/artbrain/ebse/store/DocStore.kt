@@ -48,6 +48,8 @@ class DocStore(ctx: Context) {
     private val trashDir = File(root, "trash")
     private val indexFile = File(root, "index.json")
     private val posFile = File(root, "pos.json")
+    private val sizeFile = File(root, "sizes.json")
+    private val pagesDir = File(root, "pages")
 
     // ── 목록 ──────────────────────────────────────────────
 
@@ -105,7 +107,11 @@ class DocStore(ctx: Context) {
     fun readBody(id: String): String? =
         bodyFile(id).takeIf { it.exists() }?.runCatching { readText() }?.getOrNull()
 
-    fun writeBody(id: String, text: String) = bodyFile(id).writeText(text)
+    fun writeBody(id: String, text: String) {
+        bodyFile(id).writeText(text)
+        forgetSize(id)
+        pagesFile(id).delete()
+    }
 
     /**
      * 받아 둔 본문을 **치운다**. 지우는 것이 아니라 [trashDir] 로 옮긴다.
@@ -118,6 +124,7 @@ class DocStore(ctx: Context) {
         if (!f.exists()) return false
         trashDir.mkdirs()
         imageDir(id).takeIf { it.exists() }?.renameTo(trashImageDir(id))
+        forgetSize(id)
         return f.renameTo(trashFile(id))
     }
 
@@ -132,6 +139,8 @@ class DocStore(ctx: Context) {
     fun purge(id: String) {
         trashFile(id).delete()
         trashImageDir(id).deleteRecursively()
+        forgetSize(id)
+        pagesFile(id).delete()
         savePos(id, 0)
         dropFromIndex(setOf(id))
     }
@@ -160,20 +169,65 @@ class DocStore(ctx: Context) {
         }
     }
 
-    /** 받아 둔 크기 — 사진까지 */
+    /**
+     * 받아 둔 크기 — 사진까지. **한 번 재고 [sizeFile] 에 적어 둔다.**
+     *
+     * 목록은 칸마다 이 값을 보이고, 쪽을 넘길 때마다 다시 그린다. 그때마다 사진
+     * 폴더를 걸어 다니면 사진이 든 글이 많을수록 화면이 멈춘다 — 받거나 지울 때만
+     * 바뀌는 값이므로 그때 지우고 다음에 한 번 다시 잰다.
+     */
     fun bodyBytes(id: String): Long {
         val f = bodyFile(id)
         if (!f.exists()) return 0L
+        sizes()[id]?.let { return it }
         val images = imageDir(id).walkTopDown().filter { it.isFile }.sumOf { it.length() }
-        return f.length() + images
+        val total = f.length() + images
+        sizes()[id] = total
+        saveSizes()
+        return total
+    }
+
+    private var sizeCache: MutableMap<String, Long>? = null
+
+    private fun sizes(): MutableMap<String, Long> = sizeCache ?: run {
+        val m = HashMap<String, Long>()
+        if (sizeFile.exists()) runCatching {
+            val o = JSONObject(sizeFile.readText())
+            for (k in o.keys()) m[k] = o.getLong(k)
+        }
+        sizeCache = m
+        m
+    }
+
+    private fun saveSizes() {
+        val o = JSONObject()
+        for ((k, v) in sizes()) o.put(k, v)
+        runCatching { sizeFile.writeText(o.toString()) }
+    }
+
+    /** 본문이나 사진이 바뀌었다 — 다음에 다시 잰다. */
+    private fun forgetSize(id: String) {
+        if (sizes().remove(id) != null) saveSizes()
     }
 
     /** 모두 지운다 — 폴더 링크를 바꿨을 때. 이전 폴더의 목록·본문·사진·읽던 자리가 사라진다. */
     fun wipe() {
         docsDir.listFiles()?.forEach { it.deleteRecursively() }
         trashDir.deleteRecursively()
+        pagesDir.deleteRecursively()
         indexFile.delete()
         posFile.delete()
+        sizeFile.delete()
+        sizeCache = null
+    }
+
+    /**
+     * 쪽을 나눠 둔 파일. 같은 글을 다시 열 때 처음부터 다시 나누지 않는다
+     * ([com.artbrain.ebse.ui.PageView]). 본문이 바뀌거나 지워지면 함께 지운다.
+     */
+    fun pagesFile(id: String): File {
+        pagesDir.mkdirs()
+        return File(pagesDir, "${safe(id)}.pg")
     }
 
     // ── 읽던 자리 ─────────────────────────────────────────

@@ -15,6 +15,9 @@ import com.artbrain.ebse.text.Epub
 import com.artbrain.ebse.text.PageBuilder
 import com.artbrain.ebse.text.Sentences
 import com.artbrain.ebse.text.WordWrap
+import java.io.File
+import java.util.zip.GZIPInputStream
+import java.util.zip.GZIPOutputStream
 import kotlin.math.floor
 
 /**
@@ -28,6 +31,10 @@ import kotlin.math.floor
  *
  * 글자에는 앤티에일리어싱을 쓴다 — 212dpi 에서 계단이 보이면 읽기 힘들다.
  * 회색 무늬를 쓰는 [Halftone] 과는 반대로 가는 것이 맞다.
+ *
+ * **한 번 나눈 쪽은 적어 둔다.** 나누는 일은 글자를 실제로 그려 재는 일이라
+ * 책 한 권이면 수만 번이다. 글꼴·글자 크기·상자 크기가 그대로면 답도 그대로이므로
+ * [cacheFile] 에 적어 두고 다음에는 읽기만 한다([key]).
  *
  * **사진도 한 쪽이다.** 본문에 `￼0001.png` 로 적힌 쪽은 [imageDir] 의 사진을
  * 그린다. 사진은 받을 때 이미 상자 폭의 정사각형에 맞춰 두었으므로 늘리지 않고
@@ -55,6 +62,7 @@ class PageView @JvmOverloads constructor(
         colorFilter = Eink.photoFilter
     }
     private var pendingRestore = 0
+    private var cacheFile: File? = null
 
     /** 글 상자의 크기 — 화면 가운데 [Ink.BOX_FRACTION] 만큼 */
     private var boxW = 1
@@ -83,11 +91,15 @@ class PageView @JvmOverloads constructor(
         repaginate()
     }
 
-    /** 문서 본문을 앉힌다. [restore] 쪽부터 보여 준다. 사진은 [images] 에서 찾는다. */
-    fun setDocument(text: String, restore: Int, images: java.io.File? = null) {
+    /**
+     * 문서 본문을 앉힌다. [restore] 쪽부터 보여 준다. 사진은 [images] 에서 찾는다.
+     * [cache] 를 주면 나눈 쪽을 거기 적어 두고 다음에 그대로 쓴다.
+     */
+    fun setDocument(text: String, restore: Int, images: java.io.File? = null, cache: File? = null) {
         raw = text
         imageDir = images
         pendingRestore = restore
+        cacheFile = cache
         repaginate()
     }
 
@@ -103,9 +115,16 @@ class PageView @JvmOverloads constructor(
 
     private val spacingAdd = Ink.dp(context, Ink.LINE_SPACING_ADD_DP)
 
+    /** 들어가는 글자 수를 한 번에 세는 자 — 안드로이드가 해 준다. */
+    private val breaker = WordWrap.Breaker { t, w -> paint.breakText(t, true, w, null) }
+
     /** 띄어쓰기에서만 끊어 나눈 줄들 */
     private fun wrapLines(s: String): List<String> =
-        WordWrap.wrap(s, boxW.toFloat()) { paint.measureText(it) }
+        WordWrap.wrap(s, boxW.toFloat(), breaker) { paint.measureText(it) }
+
+    /** [lines] 줄 안에 드는가 — 넘치면 더 재지 않는다. */
+    private fun fitsIn(s: String, lines: Int): Boolean =
+        WordWrap.fits(s, boxW.toFloat(), lines, breaker) { paint.measureText(it) }
 
     private fun repaginate() {
         if (width <= 0 || height <= 0) return
@@ -116,26 +135,60 @@ class PageView @JvmOverloads constructor(
         val roomy = floor(boxH / lineHeight()).toInt()
         maxLines = minOf(Ink.MAX_LINES, roomy).coerceAtLeast(1)
 
-        val fits: (String) -> Boolean = { s ->
-            s.isEmpty() || wrapLines(s).size <= maxLines
-        }
+        // 넘치는 순간 재기를 그만둔다 — 들어가지 않는 글까지 끝까지 재면
+        // 한 권을 나누는 데 원문의 몇 배를 재게 된다([WordWrap.fits]).
+        val fits: (String) -> Boolean = { s -> fitsIn(s, maxLines) }
 
         // 짧은 꼬리를 붙일 때만 한 줄 더. 상자 높이가 허락하는 만큼만.
         val tailLines = minOf(Ink.MAX_LINES_TAIL, roomy).coerceAtLeast(maxLines)
-        val fitsTail: (String) -> Boolean = { s -> wrapLines(s).size <= tailLines }
+        val fitsTail: (String) -> Boolean = { s -> fitsIn(s, tailLines) }
 
-        pages = if (raw.isBlank()) emptyList()
-        else PageBuilder.build(Sentences.split(raw), fits, fitsTail)
+        val key = key(tailLines)
+        val kept = load(key)
+        pages = when {
+            raw.isBlank() -> emptyList()
+            kept != null -> kept
+            else -> PageBuilder.build(Sentences.split(raw), fits, fitsTail).also { save(key, it) }
+        }
 
         android.util.Log.i("EBWO", "box=${boxW}x${boxH} lineH=${"%.1f".format(lineHeight())} " +
             "maxLines=$maxLines 한줄글자=${(boxW / paint.measureText("가")).toInt()} " +
             "쪽최대글자=${(maxLines * boxW / paint.measureText("가")).toInt()} " +
-            "원문=${raw.length}자 쪽=${pages.size}")
+            "원문=${raw.length}자 쪽=${pages.size} ${if (kept != null) "적어둔것" else "새로나눔"}")
 
         page = pendingRestore.coerceIn(0, (pages.size - 1).coerceAtLeast(0))
         rebuildLayout()
         onPaginated?.invoke(pages.size)
         invalidate()
+    }
+
+    /**
+     * 적어 둔 것이 이 화면의 것인지 가리는 표 — 이 가운데 하나라도 다르면 다시 나눈다.
+     * 글꼴이 바뀌는 때는 앱을 새로 깐 때뿐이라 판 번호로 갈음한다.
+     */
+    private fun key(tailLines: Int): String = listOf(
+        com.artbrain.ebse.BuildConfig.VERSION_CODE, raw.length, raw.hashCode(),
+        boxW, boxH, maxLines, tailLines, paint.textSize.toInt(),
+    ).joinToString(",")
+
+    private fun load(key: String): List<String>? {
+        val f = cacheFile?.takeIf { it.exists() } ?: return null
+        return runCatching {
+            GZIPInputStream(f.inputStream().buffered()).bufferedReader().use { r ->
+                if (r.readLine() != key) return null
+                r.readText().split(SEP).takeIf { it.isNotEmpty() && it[0].isNotEmpty() }
+            }
+        }.getOrNull()
+    }
+
+    private fun save(key: String, pages: List<String>) {
+        val f = cacheFile ?: return
+        if (pages.isEmpty()) return
+        runCatching {
+            GZIPOutputStream(f.outputStream().buffered()).bufferedWriter().use { w ->
+                w.write(key); w.write("\n"); w.write(pages.joinToString(SEP))
+            }
+        }.onFailure { f.delete() }
     }
 
     private fun rebuildLayout() {
@@ -195,5 +248,10 @@ class PageView @JvmOverloads constructor(
         canvas.translate((width - boxW) / 2f, (height - l.height) / 2f)
         l.draw(canvas)
         canvas.restore()
+    }
+
+    companion object {
+        /** 쪽과 쪽 사이를 가르는 글자 — 글에는 나오지 않는다. */
+        private const val SEP = "\u0000"
     }
 }

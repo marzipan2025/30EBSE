@@ -160,7 +160,10 @@ class ReaderActivity : Activity() {
 
         toList.setOnClickListener { finish() }
         refreshBtn.setOnClickListener { refresh(); keepUiAwake() }
-        timeline.onSeek = { p -> pageView.page = p; afterTurn(); keepUiAwake() }
+        // 끄는 동안에는 쪽만 옮기고, 읽던 자리는 손을 뗄 때 한 번 적는다 —
+        // 칸마다 적으면 한 번 끌 때 파일을 수십 번 쓴다.
+        timeline.onSeek = { p -> pageView.page = p; updateChrome(); keepUiAwake() }
+        timeline.onSeekEnd = { afterTurn() }
 
         // 막대를 숨기려고 화면 끝까지 쓰게 해 두었으므로(setDecorFitsSystemWindows
         // = false), 조작판이 상태바 밑으로 들어간다. 막대가 나와 있는 동안에는
@@ -208,7 +211,7 @@ class ReaderActivity : Activity() {
             say("받아 둔 글이 없습니다. 목록에서 다시 열어 주세요.")
             setUiVisible(true)
         } else {
-            pageView.setDocument(body, store.loadPos(docId), store.imageDir(docId))
+            pageView.setDocument(body, store.loadPos(docId), store.imageDir(docId), store.pagesFile(docId))
             setUiVisible(false)
         }
         checkRefresh()

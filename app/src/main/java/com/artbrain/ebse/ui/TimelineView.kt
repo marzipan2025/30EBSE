@@ -70,8 +70,11 @@ class TimelineView @JvmOverloads constructor(
     private var count = 0
     private var current = 0
 
-    /** 칸을 누르면 그 칸의 첫 쪽 번호가 온다. */
+    /** 칸을 누르면 그 칸의 첫 쪽 번호가 온다. 끄는 동안에는 칸이 바뀔 때마다 온다. */
     var onSeek: ((page: Int) -> Unit)? = null
+
+    /** 손을 뗐다 — 읽던 자리를 적는 따위, 한 번만 할 일은 여기서 한다. */
+    var onSeekEnd: (() -> Unit)? = null
 
     fun set(count: Int, current: Int) {
         this.count = count
@@ -139,7 +142,10 @@ class TimelineView @JvmOverloads constructor(
                 seekTo(event.x, n)
             }
             MotionEvent.ACTION_MOVE -> seekTo(event.x, n)
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> seekCell = -1
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                seekCell = -1
+                onSeekEnd?.invoke()
+            }
         }
         return true
     }
