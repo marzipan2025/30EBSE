@@ -33,7 +33,7 @@ object Net {
         else -> false
     }
 
-    const val OFFLINE = "인터넷에 연결되어 있지 않습니다.\n가져온 글은 그대로 읽을 수 있습니다."
+    const val OFFLINE = "인터넷에 연결되어 있지 않습니다."
 
     /** 무엇을 하려다 난 일인지 붙여 사람 말로 돌려준다. */
     fun explain(ctx: Context, e: Throwable, doing: String): String = when {

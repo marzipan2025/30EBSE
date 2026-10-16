@@ -480,7 +480,7 @@ class DocListActivity : Activity() {
     private fun startUpdate(r: Updater.Release) {
         if (!Updater.canInstall(this)) {
             popup.show(
-                msg = "설치하려면 이 앱에 설치 권한이 필요합니다.\n켜고 돌아와 ↩ 를 다시 눌러 주세요.",
+                msg = "설치하려면 이 앱에 설치 권한이 필요합니다.\n켜고 돌아와 다시 시도해 주세요.",
                 undoLabel = SETTINGS,
                 onUndo = { Updater.openInstallSettings(this) },
                 ms = UPDATE_MS,
@@ -530,13 +530,9 @@ class DocListActivity : Activity() {
     }
 
     private fun showStatus() {
-        val msg = when {
-            // 목록이 있으면 받는 중인 것은 팝업이 알린다. 칸 위에 겹쳐 쓰지 않는다.
-            busy && docs.isEmpty() -> "폴더를 읽고 있습니다…"
-            settings.folder == null -> "○ 를 눌러 구글 드라이브 폴더 링크를 넣어 주세요."
-            docs.isEmpty() -> "↩ 를 눌러 폴더의 문서를 받아오세요.\npdf · docx · txt · epub · md · srt · 구글 문서"
-            else -> null
-        }
+        // 빈 목록에 쓰는 것은 읽는 중이라는 것뿐 — 무엇을 누르라는 안내는 두지 않는다.
+        // 목록이 있으면 받는 중인 것은 팝업이 알린다. 칸 위에 겹쳐 쓰지 않는다.
+        val msg = if (busy && docs.isEmpty()) "폴더를 읽고 있습니다…" else null
         empty.text = msg.orEmpty()
         empty.visibility = if (msg == null) View.GONE else View.VISIBLE
     }
