@@ -19,6 +19,7 @@ import com.artbrain.ebse.net.PublicDrive
 import com.artbrain.ebse.net.Updater
 import com.artbrain.ebse.store.Doc
 import com.artbrain.ebse.store.DocStore
+import com.artbrain.ebse.store.Guide
 import com.artbrain.ebse.store.Library
 import com.artbrain.ebse.store.Settings
 import com.artbrain.ebse.ui.Chime
@@ -137,8 +138,14 @@ class DocListActivity : Activity() {
             rowH = h / fit
             perPage = fit
             render()
-            // 처음 켰는데 폴더 링크가 없으면 설정부터 연다.
-            if (!askedOnce && settings.folder == null) { askedOnce = true; showSettings() }
+            // 처음 설치하고 켜면 안내부터 연다. 다 읽고 돌아오면(onResume) 링크가 없을 때 설정을 연다.
+            // 링크가 이미 있는 기기(앞 판에서 올라온 기기)에는 열지 않고 본 것으로만 적는다.
+            if (!askedOnce) {
+                askedOnce = true
+                val fresh = settings.folder == null
+                if (Guide.firstOpen(this) && fresh) { settingsAfterGuide = true; open(Guide.primary()) }
+                else if (fresh) showSettings()
+            }
         }
     }
 
@@ -146,6 +153,11 @@ class DocListActivity : Activity() {
         super.onResume()
         hideBars()
         chime.resume()
+        // 처음 안내를 읽고 돌아왔다 — 링크가 아직 없으면 설정을 연다.
+        if (settingsAfterGuide && ::store.isInitialized && perPage > 0 && !isChangingConfigurations) {
+            settingsAfterGuide = false
+            if (settings.folder == null) root.post { showSettings() }
+        }
         // 읽고 돌아오면 받아 둔 표시가 바뀔 수 있다.
         if (::store.isInitialized && perPage > 0) {
             docs = store.loadIndex()
@@ -250,6 +262,8 @@ class DocListActivity : Activity() {
     private var rowH = 0
     private var measuredRowsH = 0
     private var askedOnce = false
+    /** 처음 안내를 열었다 — 돌아오면 링크가 없을 때 설정을 연다. */
+    private var settingsAfterGuide = false
 
     private fun rowPx(): Int =
         if (rowH > 0) rowH else Ink.dp(this, ROW_DP).toInt()
@@ -322,7 +336,12 @@ class DocListActivity : Activity() {
         val mark = row.findViewById<TextView>(R.id.mark)
         val del = row.findViewById<TextView>(R.id.del)
 
-        if (doc.cached) {
+        if (doc.builtin) {
+            // 앱에 든 안내 — 지울 수 없으니 ×도 무게도 두지 않는다.
+            mark.text = ""
+            del.visibility = View.INVISIBLE
+            del.setOnClickListener(null)
+        } else if (doc.cached) {
             // 10KB 를 한 단위로 센 정수 — 130KB 는 13, 6,230KB 는 623. 단위는 붙이지 않는다.
             // MB 소수점 한 자리로는 글만 든 문서가 모두 0.0·0.1 로 뭉쳐 가를 수 없었다.
             mark.text = sizeMark(store.bodyBytes(doc.id))
@@ -368,7 +387,7 @@ class DocListActivity : Activity() {
             })
             return
         }
-        if (busy) return
+        if (busy || doc.builtin) return
         if (!Net.online(this)) { say(Net.OFFLINE); return }
         var job: kotlinx.coroutines.Job? = null
         val progress = popup.progress("받고 있습니다", name = doc.name) { job?.cancel() }
@@ -532,7 +551,8 @@ class DocListActivity : Activity() {
     private fun showStatus() {
         // 빈 목록에 쓰는 것은 읽는 중이라는 것뿐 — 무엇을 누르라는 안내는 두지 않는다.
         // 목록이 있으면 받는 중인 것은 팝업이 알린다. 칸 위에 겹쳐 쓰지 않는다.
-        val msg = if (busy && docs.isEmpty()) "폴더를 읽고 있습니다…" else null
+        // 앱에 든 안내는 늘 있으므로 그것만 있으면 빈 목록으로 본다.
+        val msg = if (busy && docs.all { it.builtin }) "폴더를 읽고 있습니다…" else null
         empty.text = msg.orEmpty()
         empty.visibility = if (msg == null) View.GONE else View.VISIBLE
     }

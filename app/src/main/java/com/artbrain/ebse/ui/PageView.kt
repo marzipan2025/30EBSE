@@ -50,6 +50,15 @@ class PageView @JvmOverloads constructor(
         textSize = Ink.dp(context, Ink.TEXT_DP)
     }
 
+    /** 소제목 쪽([headings]) — 본문 글꼴을 굵게 그린다. 굵은 글꼴 파일이 없어 획을 덧그린다. */
+    private val headingPaint = TextPaint(paint).apply { isFakeBoldText = true }
+
+    /**
+     * `# ` 로 시작하는 쪽을 소제목으로 보고 굵게, `# ` 는 떼고 그린다. 앱에 든 안내만 켠다 —
+     * 남의 글에서는 `# ` 가 그냥 글자일 수 있다.
+     */
+    private var headings = false
+
     private var raw: String = ""
     private var pages: List<String> = emptyList()
     private var layout: StaticLayout? = null
@@ -88,6 +97,7 @@ class PageView @JvmOverloads constructor(
 
     fun setFont(tf: Typeface) {
         paint.typeface = tf
+        headingPaint.typeface = tf
         repaginate()
     }
 
@@ -95,7 +105,11 @@ class PageView @JvmOverloads constructor(
      * 문서 본문을 앉힌다. [restore] 쪽부터 보여 준다. 사진은 [images] 에서 찾는다.
      * [cache] 를 주면 나눈 쪽을 거기 적어 두고 다음에 그대로 쓴다.
      */
-    fun setDocument(text: String, restore: Int, images: java.io.File? = null, cache: File? = null) {
+    fun setDocument(
+        text: String, restore: Int, images: java.io.File? = null, cache: File? = null,
+        headings: Boolean = false,
+    ) {
+        this.headings = headings
         raw = text
         imageDir = images
         pendingRestore = restore
@@ -203,9 +217,11 @@ class PageView @JvmOverloads constructor(
         }
         // 우리가 끊은 줄을 그대로 그린다. 줄바꿈이 이미 박혀 있으므로
         // StaticLayout 이 따로 끊을 일이 없다.
-        val wrapped = wrapLines(s).joinToString("\n")
+        val heading = headings && s.startsWith(HEADING)
+        val t = if (heading) s.removePrefix(HEADING).trim() else s
+        val wrapped = wrapLines(t).joinToString("\n")
         layout = StaticLayout.Builder
-            .obtain(wrapped, 0, wrapped.length, paint, boxW)
+            .obtain(wrapped, 0, wrapped.length, if (heading) headingPaint else paint, boxW)
             .setAlignment(Layout.Alignment.ALIGN_CENTER)
             .setLineSpacing(spacingAdd, Ink.LINE_SPACING)
             .setIncludePad(false)
@@ -253,5 +269,7 @@ class PageView @JvmOverloads constructor(
     companion object {
         /** 쪽과 쪽 사이를 가르는 글자 — 글에는 나오지 않는다. */
         private const val SEP = "\u0000"
+        /** 소제목 쪽의 머리 — [headings] 를 켠 글에서만 */
+        const val HEADING = "# "
     }
 }

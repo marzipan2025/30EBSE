@@ -25,6 +25,7 @@ import com.artbrain.ebse.net.Net
 import com.artbrain.ebse.store.Library
 import com.artbrain.ebse.store.Settings
 import com.artbrain.ebse.store.DocStore
+import com.artbrain.ebse.store.Guide
 import com.artbrain.ebse.ui.Chime
 import com.artbrain.ebse.ui.Eink
 import com.artbrain.ebse.ui.Fonts
@@ -211,7 +212,8 @@ class ReaderActivity : Activity() {
             say("받아 둔 글이 없습니다. 목록에서 다시 열어 주세요.")
             setUiVisible(true)
         } else {
-            pageView.setDocument(body, store.loadPos(docId), store.imageDir(docId), store.pagesFile(docId))
+            pageView.setDocument(body, store.loadPos(docId), store.imageDir(docId), store.pagesFile(docId),
+                headings = Guide.isGuide(docId))
             setUiVisible(false)
         }
         checkRefresh()
@@ -439,7 +441,7 @@ class ReaderActivity : Activity() {
 
     private fun checkRefresh() {
         val doc = store.loadIndex().firstOrNull { it.id == docId }
-        canRefresh = doc != null && !doc.gone && Settings(this).folder != null
+        canRefresh = doc != null && !doc.gone && !doc.builtin && Settings(this).folder != null
         if (uiShown) refreshBtn.visibility = if (canRefresh) View.VISIBLE else View.GONE
     }
 
@@ -447,7 +449,7 @@ class ReaderActivity : Activity() {
     private fun refresh() {
         if (busy || docId.isEmpty()) return
         if (!Net.online(this)) { say(Net.OFFLINE); return }
-        val doc = store.loadIndex().firstOrNull { it.id == docId } ?: return
+        val doc = store.loadIndex().firstOrNull { it.id == docId && !it.builtin } ?: return
         var job: kotlinx.coroutines.Job? = null
         val progress = popup.progress("다시 받고 있습니다") { job?.cancel() }
         job = scope.launch {

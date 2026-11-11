@@ -21,6 +21,8 @@ data class Doc(
      * 받을 곳이 없고, 지우면(×) 목록에서도 빠진다.
      */
     val gone: Boolean = false,
+    /** 앱에 든 안내([Guide]). 목록 맨 뒤에 늘 있고 지울 수 없으며, 드라이브에서 다시 받지 않는다. */
+    val builtin: Boolean = false,
 ) {
     val isEpub: Boolean get() = mimeType == EPUB
 
@@ -41,7 +43,7 @@ data class Doc(
  *   files/docs/<id>/     본문에 든 사진 (epub 만). 이름은 본문의 표가 가리킨다.
  *   files/trash/         지운 뒤 Undo 를 기다리는 본문
  */
-class DocStore(ctx: Context) {
+class DocStore(private val ctx: Context) {
 
     private val root: File = ctx.filesDir
     private val docsDir = File(root, "docs").apply { mkdirs() }
@@ -59,8 +61,15 @@ class DocStore(ctx: Context) {
      *
      * 폴더에서 사라진 칸([Doc.gone])은 본문이 있을 때만 뜬다. 그런 칸을 지우면 본문이
      * 휴지통으로 가며 곧바로 빠지고, Undo 로 되돌리면 돌아온다.
+     *
+     * 맨 뒤에는 늘 앱에 든 안내 둘([Guide], 한글·영문)이 선다. 본문이 없으면 이때 앉힌다.
      */
     fun loadIndex(all: Boolean = false): List<Doc> {
+        Guide.ensure(ctx, this)
+        return loadDriveIndex(all) + Guide.docs()
+    }
+
+    private fun loadDriveIndex(all: Boolean): List<Doc> {
         if (!indexFile.exists()) return emptyList()
         return runCatching {
             val arr = JSONArray(indexFile.readText())
@@ -76,7 +85,7 @@ class DocStore(ctx: Context) {
 
     fun saveIndex(docs: List<Doc>) {
         val arr = JSONArray()
-        for (d in docs) arr.put(JSONObject().apply {
+        for (d in docs.filterNot { it.builtin }) arr.put(JSONObject().apply {
             put("id", d.id); put("name", d.name); put("modifiedTime", d.modifiedTime)
             put("mimeType", d.mimeType)
             d.resourceKey?.let { put("resourceKey", it) }
@@ -120,6 +129,7 @@ class DocStore(ctx: Context) {
      * 되돌리면 읽던 데서 이어야 한다. 정말 지우는 것은 [purge] 가 한다.
      */
     fun deleteBody(id: String): Boolean {
+        if (Guide.isGuide(id)) return false
         val f = bodyFile(id)
         if (!f.exists()) return false
         trashDir.mkdirs()

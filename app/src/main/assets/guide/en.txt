@@ -1,0 +1,55 @@
+Hello.
+
+30EBSE is a reader that shows one sentence per page.
+
+# Turning pages
+
+Tap the wide area at the bottom of the screen to go to the next sentence.
+
+Tap the narrow area at the bottom left to go back one sentence.
+
+You can also swipe from left to right to go back.
+
+# UI
+
+Tap anywhere in the upper part of the screen to show the UI.
+
+Tap or drag the bar at the bottom to jump straight to any point.
+
+Tap ↰ at the top left to return to the list.
+
+The UI hides by itself after 5 seconds without a touch.
+
+# Screen refresh
+
+On e-ink devices, a time notice briefly appears on the hour, and at 15, 30 and 45 minutes past.
+
+At that moment the screen flashes black once to clear ghosting.
+
+# Connecting Google Drive
+
+Make a folder in Google Drive and put the texts you want to read in it.
+
+It reads Google Docs, pdf, docx, txt, epub, md and srt.
+
+Set the folder's sharing to "Anyone with the link" and copy the link.
+
+Tap ○ at the top right of the list, paste the link and tap Save.
+
+Tap a title in the list to download and open it.
+
+If you add more files to the folder, tap ↩ in the list.
+
+# Cautions
+
+Anyone who has the link can see the folder.
+
+Put in only texts that are fine to be public.
+
+Saving a different link erases the texts and reading positions from the previous folder.
+
+Work or school accounts may not allow link sharing.
+
+When a new version of the app is out, you'll be told when you tap ↩.
+
+Happy reading.
