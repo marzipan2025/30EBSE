@@ -29,8 +29,8 @@ android {
         applicationId = "com.artbrain.ebse"
         minSdk = 30        // Poke4 Lite = Android 11
         targetSdk = 36
-        versionCode = 10
-        versionName = "0.3.2"
+        versionCode = 11
+        versionName = "0.3.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "DRIVE_API_KEY", "\"${drive.getProperty("DRIVE_API_KEY", "")}\"")
     }
