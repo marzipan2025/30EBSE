@@ -50,7 +50,7 @@ class SettingsActivity : Activity() {
     private lateinit var save: TextView
     private lateinit var label: TextView
     private lateinit var link: EditText
-    private lateinit var footer: TextView
+    private lateinit var footer: android.widget.LinearLayout
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -133,10 +133,7 @@ class SettingsActivity : Activity() {
             if (id == EditorInfo.IME_ACTION_DONE) { save(); true } else false
         }
 
-        footer.text = FOOTER.format(BuildConfig.VERSION_NAME)
-        footer.typeface = Fonts.of(this, Fonts.BODY)
-        footer.setTextSize(TypedValue.COMPLEX_UNIT_DIP, FOOTER_DP)
-        footer.setLineSpacing(Ink.dp(this, 2f), 1f)
+        buildFooter()
 
         root.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> place() }
     }
@@ -191,6 +188,53 @@ class SettingsActivity : Activity() {
             width = boxW
             topMargin = (h * (1f - Ink.EDGE_Y)).toInt() + touch / 2 - footer.height
         }
+    }
+
+    /**
+     * 맨 아래 저작권·라이선스 줄들. 라이선스 줄은 **누르면 원문을 띄운다**(assets/licenses/).
+     * 손가락이 이웃 줄을 건드리지 않게 줄마다 [FOOTER_ROW_DP] 높이를 준다 — 글은 8dp 로 작아도
+     * 누르는 자리는 넉넉하다. 누르는 동안 목록 칸처럼 글 뒤를 `░` 로 채운다.
+     */
+    private fun buildFooter() {
+        val rows = listOf(
+            "30EBSE ${BuildConfig.VERSION_NAME} · © artbrain" to null,
+            "에이투지체 · Geist Mono — SIL Open Font License 1.1" to
+                License("SIL Open Font License 1.1", "licenses/ofl.txt"),
+            "PdfBox-Android · OkHttp · AndroidX — Apache License 2.0" to
+                License("Apache License 2.0", "licenses/apache.txt"),
+            "juniversalchardet — Mozilla Public License 1.1" to
+                License("Mozilla Public License 1.1", "licenses/mpl.txt"),
+            "github.com/marzipan2025/30EBSE" to null,
+        )
+        val h = Ink.dp(this, FOOTER_ROW_DP).toInt()
+        for ((text, license) in rows) {
+            val tv = TextView(this).apply {
+                this.text = text
+                setTextColor(android.graphics.Color.BLACK)
+                typeface = Fonts.of(this@SettingsActivity, Fonts.BODY)
+                setTextSize(TypedValue.COMPLEX_UNIT_DIP, FOOTER_DP)
+                includeFontPadding = false
+                gravity = Gravity.CENTER_VERTICAL or Gravity.START
+                maxLines = 1
+            }
+            if (license != null) {
+                // 누를 수 있는 줄은 밑줄로 가른다.
+                tv.paintFlags = tv.paintFlags or android.graphics.Paint.UNDERLINE_TEXT_FLAG
+                com.artbrain.ebse.ui.LineShade.applyTo(tv, tv, FOOTER_DP)
+                tv.setOnClickListener { showLicense(license) }
+            }
+            footer.addView(tv, android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT, h))
+        }
+    }
+
+    private class License(val title: String, val asset: String)
+
+    private fun showLicense(l: License) {
+        val text = runCatching { assets.open(l.asset).bufferedReader().use { it.readText() } }
+            .getOrNull() ?: return
+        // 본문은 이 화면 아래 저작권 글과 같은 크기로.
+        popup.document(l.title, text, FOOTER_DP)
     }
 
     private inline fun setLp(v: android.view.View, block: FrameLayout.LayoutParams.() -> Unit) {
@@ -278,10 +322,7 @@ class SettingsActivity : Activity() {
         /** 저작권 글 크기 — 팝업 시절(10dp)보다 2dp 작게 */
         const val FOOTER_DP = 8f
 
-        const val FOOTER = "30EBSE %s · © artbrain\n" +
-            "에이투지체 · Geist Mono — SIL Open Font License 1.1\n" +
-            "PdfBox-Android · OkHttp · AndroidX — Apache License 2.0\n" +
-            "juniversalchardet — Mozilla Public License 1.1\n" +
-            "github.com/marzipan2025/30EBSE"
+        /** 저작권 한 줄의 높이 — 누르는 자리가 이웃 줄과 겹치지 않게 */
+        const val FOOTER_ROW_DP = 26f
     }
 }

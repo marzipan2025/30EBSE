@@ -135,6 +135,169 @@ class Popup(private val root: FrameLayout) {
         }
     }
 
+    /**
+     * 긴 글(라이선스 원문 따위)을 띄운다. **폭은 여느 팝업과 같고([WIDTH_DP]) 높이는 활용공간만큼**
+     * — 위아래 끝이 목록 머리·발 줄([Ink.EDGE_Y])의 손가락 자리 끝과 같다.
+     * 머리 줄 왼쪽에 [title], 오른쪽에 Close. 제목은 글 상자 폭의 [DOC_TITLE_FRACTION] 를 넘으면
+     * 두 줄로 감고, **첫 줄 글자의 윗끝(먹)을 Close 글자의 윗끝에** 맞춘다. Close 는 제목이 몇 줄이든
+     * 팝업 윗면에서 늘 같은 거리에 서고, 두 줄 제목은 아래로 자란다.
+     *
+     * 스크롤은 쓰지 않는다 — e-ink 에서 끌어 올리는 동안 화면이 번진다. 대신 글 상자 높이에
+     * 맞춰 쪽으로 나누고, 한 쪽에 다 들지 않으면 아래 줄에 `←` 쪽번호 `→` 를 둔다(목록과 같은 꼴).
+     * 쪽은 실제로 그릴 붓과 폭으로 줄을 끊어 나누므로 쪽 끝에서 글이 잘리지 않는다.
+     * 저절로 닫히지 않는다.
+     */
+    fun document(title: String, text: String, textDp: Float = DOC_DP) {
+        dismiss(runExpire = true)
+        val pad = Ink.dp(ctx, 20f).toInt()
+        val touch = Ink.dp(ctx, Ink.TOUCH_DP).toInt()
+        val boxW = boxWidth()
+        val boxH = ((root.height * (1f - 2 * Ink.EDGE_Y)).toInt() + touch)
+            .coerceAtMost(root.height).coerceAtLeast(Ink.dp(ctx, 200f).toInt())
+        val rowH = Ink.dp(ctx, 44f).toInt()
+        val gap = Ink.dp(ctx, DOC_GAP_DP).toInt()
+        val textW = boxW - pad * 2
+
+        // 머리 줄 — 제목(넘치면 두 줄)과 Close.
+        val titleView = TextView(ctx).apply {
+            this.text = title
+            setTextColor(Color.BLACK)
+            typeface = Fonts.of(ctx, Fonts.UI)
+            fontVariationSettings = Fonts.REGULAR
+            setTextSize(TypedValue.COMPLEX_UNIT_DIP, DOC_TITLE_DP)
+            includeFontPadding = false
+            maxWidth = (textW * DOC_TITLE_FRACTION).toInt()
+            maxLines = 2
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }
+        val close = edge(button(CLOSE, 1f, Fonts.REGULAR) { dismiss() }, Gravity.END)
+        val head = FrameLayout(ctx).apply {
+            addView(titleView, FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.START or Gravity.TOP))
+            addView(close, FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.END or Gravity.TOP))
+        }
+        // 제목 첫 줄 먹의 윗끝을 Close 먹의 윗끝에 맞춘다. Close 는 제자리, 제목만 옮긴다.
+        // 글자 크기가 달라 글자 상자로 맞추면 어긋나 보이므로 실제 먹(getTextBounds)으로 잰다.
+        head.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            val tl = titleView.layout ?: return@addOnLayoutChangeListener
+            val r = android.graphics.Rect()
+            close.paint.getTextBounds(CLOSE, 0, CLOSE.length, r)
+            val want = close.top + close.baseline + r.top
+            val first = title.substring(tl.getLineStart(0), tl.getLineEnd(0)).trimEnd()
+            titleView.paint.getTextBounds(first, 0, first.length, r)
+            val have = titleView.top + titleView.paddingTop + tl.getLineBaseline(0) + r.top
+            if (want != have) titleView.translationY = (want - have).toFloat()
+        }
+        // 머리 줄 높이 — 한 줄이면 단추 높이, 두 줄 제목이 그보다 길게 내려가면 그만큼.
+        head.measure(
+            View.MeasureSpec.makeMeasureSpec(textW, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
+        val closeTopInk = run {
+            val r = android.graphics.Rect()
+            close.paint.getTextBounds(CLOSE, 0, CLOSE.length, r)
+            close.paddingTop + (close.measuredHeight - close.paddingTop - close.paddingBottom -
+                (close.paint.fontMetricsInt.descent - close.paint.fontMetricsInt.ascent)) / 2 -
+                close.paint.fontMetricsInt.ascent + r.top
+        }
+        val headH = maxOf(rowH, closeTopInk + titleView.measuredHeight)
+        // 윗 여백을 여느 팝업과 맞춘다 — 여느 팝업의 첫 글자 먹 윗끝이 서는 자리에 Close·제목의 먹
+        // 윗끝이 오도록, 단추의 안쪽 여백만큼 팝업 위 여백을 줄인다.
+        val msgTopInk = run {
+            val t = text("가")
+            t.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
+            val r = android.graphics.Rect()
+            t.paint.getTextBounds("가", 0, 1, r)
+            t.baseline + r.top
+        }
+        val topPad = (pad + msgTopInk - closeTopInk).coerceAtLeast(0)
+
+        val body = TextView(ctx).apply {
+            setTextColor(Color.BLACK)
+            typeface = Fonts.of(ctx, Fonts.BODY)
+            setTextSize(TypedValue.COMPLEX_UNIT_DIP, textDp)
+            setLineSpacing(Ink.dp(ctx, MSG_LINE_ADD_DP), 1f)
+            includeFontPadding = false
+            breakStrategy = android.text.Layout.BREAK_STRATEGY_SIMPLE
+            hyphenationFrequency = android.text.Layout.HYPHENATION_FREQUENCY_NONE
+            gravity = Gravity.TOP or Gravity.START
+        }
+
+        // 머리 줄과 (있으면) 쪽 줄을 뺀 높이에 들어가는 만큼씩 나눈다.
+        val oneH = boxH - topPad - pad / 2 - headH - gap
+        var pages = paginate(text, body, textW, oneH)
+        if (pages.size > 1) pages = paginate(text, body, textW, oneH - rowH - gap)
+        val textH = if (pages.size > 1) oneH - rowH - gap else oneH
+        var at = 0
+
+        val number = label("")
+        val prev = button(PREV, 1f, Fonts.THIN) {}
+        val next = button(NEXT, 1f, Fonts.THIN) {}
+        fun turn(to: Int) {
+            at = to.coerceIn(0, pages.size - 1)
+            body.text = pages[at]
+            number.text = "${at + 1}/${pages.size}"
+            // 넘길 수 없는 쪽 화살표는 목록처럼 옅게 남긴다 — 줄의 균형이 무너지지 않는다.
+            prev.alpha = if (at > 0) 1f else DIM
+            next.alpha = if (at < pages.size - 1) 1f else DIM
+        }
+        prev.setOnClickListener { if (at > 0) turn(at - 1) }
+        next.setOnClickListener { if (at < pages.size - 1) turn(at + 1) }
+        for (b in listOf(prev, next)) b.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 24f)
+        number.fontVariationSettings = Fonts.THIN
+        number.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14f)
+
+        val v = frame(pad).apply {
+            setPadding(pad, topPad, pad, pad / 2)
+            clipChildren = false
+            gravity = Gravity.TOP
+            addView(head, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, headH))
+            addView(body, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, textH).apply {
+                topMargin = gap
+            })
+            if (pages.size > 1) addView(FrameLayout(ctx).apply {
+                addView(edge(prev, Gravity.START), lp(Gravity.START))
+                addView(number, lp(Gravity.CENTER_HORIZONTAL))
+                addView(edge(next, Gravity.END), lp(Gravity.END))
+            }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, rowH).apply {
+                topMargin = gap
+            })
+        }
+        turn(0)
+        root.addView(v, FrameLayout.LayoutParams(boxW, boxH, Gravity.CENTER))
+        box = v
+        hand.removeCallbacks(hide)
+    }
+
+    /**
+     * [text] 를 [width] 폭·[height] 높이의 쪽들로 나눈다. [v] 의 붓과 줄 간격 그대로 줄을 끊고,
+     * 쪽마다 줄 머리에서 시작하므로 쪽을 따로 그려도 같은 자리에서 끊긴다. 쪽 머리의 빈 줄은 뗀다.
+     */
+    private fun paginate(text: String, v: TextView, width: Int, height: Int): List<String> {
+        if (width <= 0 || height <= 0) return listOf(text)
+        val l = android.text.StaticLayout.Builder.obtain(text, 0, text.length, v.paint, width)
+            .setLineSpacing(v.lineSpacingExtra, v.lineSpacingMultiplier)
+            .setIncludePad(false)
+            .setBreakStrategy(android.text.Layout.BREAK_STRATEGY_SIMPLE)
+            .setHyphenationFrequency(android.text.Layout.HYPHENATION_FREQUENCY_NONE)
+            .build()
+        val pages = ArrayList<String>()
+        var first = 0
+        while (first < l.lineCount) {
+            // 쪽 머리의 빈 줄(문단 사이)은 건너뛴다.
+            while (first < l.lineCount && text.substring(l.getLineStart(first), l.getLineEnd(first)).isBlank()) first++
+            if (first >= l.lineCount) break
+            val top = l.getLineTop(first)
+            var last = first
+            while (last + 1 < l.lineCount && l.getLineBottom(last + 1) - top <= height) last++
+            pages += text.substring(l.getLineStart(first), l.getLineEnd(last)).trimEnd()
+            first = last + 1
+        }
+        return pages.ifEmpty { listOf(text) }
+    }
+
     private fun frame(pad: Int) = LinearLayout(ctx).apply {
         orientation = LinearLayout.VERTICAL
         gravity = Gravity.CENTER
@@ -287,6 +450,16 @@ class Popup(private val root: FrameLayout) {
         /** 알림 글 크기와 더하는 줄 간격 */
         private const val MSG_DP = 12f
         private const val MSG_LINE_ADD_DP = 2f
+
+        /** 긴 글 팝업 — 글 크기, 제목 크기, 제목이 차지할 수 있는 폭(글 상자의 비율), 줄 사이 */
+        private const val DOC_DP = 10f
+        private const val DOC_TITLE_DP = 12f
+        private const val DOC_TITLE_FRACTION = 0.6f
+        private const val DOC_GAP_DP = 8f
+        private const val PREV = "←"
+        private const val NEXT = "→"
+        /** 넘길 수 없는 화살표의 옅기 — 목록과 같다 */
+        private const val DIM = 0.5f
 
         const val PLAIN_MS = 4_000L
         const val UNDO_MS = 6_000L
