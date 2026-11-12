@@ -167,7 +167,7 @@
         <span class="bar" aria-hidden="true"></span>
         <button type="button" data-lang="en" aria-pressed="false">EN</button>
       </div>
-      <a class="btn dark sm" href="https://github.com/marzipan2025/30EBSE/releases/latest" data-en="Get APK">APK 받기</a>
+      <a class="btn dark sm" href="https://github.com/marzipan2025/30EBSE/releases/download/v0.3.3/30EBSE-0.3.3.apk" data-apk data-en="Get APK">APK 받기</a>
     </div>
   </div>
 </nav>
@@ -180,7 +180,7 @@
   <div class="wrap">
     <p class="lead reveal" data-en="One sentence per page.<br>An e-ink reader for slowly reading the texts you keep in a Google Drive folder.">한 쪽에 한 문장씩.<br>구글 드라이브 폴더에 넣어 둔 글을 e-ink 화면에서 천천히 읽는 리더.</p>
     <div class="reveal d1">
-      <a class="btn dark lg" href="https://github.com/marzipan2025/30EBSE/releases/latest" data-en="Get APK">APK 받기</a>
+      <a class="btn dark lg" href="https://github.com/marzipan2025/30EBSE/releases/download/v0.3.3/30EBSE-0.3.3.apk" data-apk data-en="Get APK">APK 받기</a>
       <p class="note" data-en="Android 11+ · No account, no sign-in · Free">Android 11 이상 · 계정·로그인 없음 · 무료</p>
     </div>
   </div>
@@ -262,7 +262,7 @@
   <div class="wrap">
     <h2>One sentence at a time.</h2>
     <div style="margin-top:32px">
-      <a class="btn dark lg" href="https://github.com/marzipan2025/30EBSE/releases/latest" data-en="Get APK">APK 받기</a>
+      <a class="btn dark lg" href="https://github.com/marzipan2025/30EBSE/releases/download/v0.3.3/30EBSE-0.3.3.apk" data-apk data-en="Get APK">APK 받기</a>
     </div>
   </div>
 </section>
@@ -275,6 +275,17 @@
 </footer>
 
 <script>
+  /* ---- APK 받기: 페이지 이동 없이 최신 APK 파일을 바로 받는다 ----
+     버튼에는 현재 판(v0.3.3)의 파일 주소가 박혀 있고, 열릴 때 GitHub 에 가장 최근 릴리스를 물어
+     그 APK 주소로 바꿔 끼운다. 물어보기에 실패해도 박힌 주소로 받아진다. */
+  fetch('https://api.github.com/repos/marzipan2025/30EBSE/releases/latest')
+    .then(r => r.ok ? r.json() : null)
+    .then(rel => {
+      const apk = rel && (rel.assets || []).find(a => /\.apk$/i.test(a.name));
+      if (apk) document.querySelectorAll('[data-apk]').forEach(a => a.href = apk.browser_download_url);
+    })
+    .catch(() => {});
+
   /* ---- KO / EN ---- */
   const META = {
     ko:{title:'30EBSE — eBook by Sentence', desc:'한 쪽에 한 문장씩 읽는 e-ink 리더. 구글 드라이브 폴더 하나에 글을 넣으면 끝 — 로그인 없음.', nav:'주 메뉴'},
