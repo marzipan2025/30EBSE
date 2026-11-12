@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>30EBSE — eBook by Sentence</title>
+<meta name="description" content="한 쪽에 한 문장씩 읽는 e-ink 리더. 구글 드라이브 폴더 하나에 글을 넣으면 끝 — 로그인 없음.">
+<meta name="theme-color" content="#b7c0c9">
+<meta property="og:title" content="30EBSE — eBook by Sentence">
+<meta property="og:description" content="한 쪽에 한 문장씩 읽는 e-ink 리더">
+<meta property="og:image" content="img/hero.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:ital,wght@0,100;0,400;1,100&display=swap" rel="stylesheet">
+<style>
+  /*
+    바탕색 — 첫 사진의 바탕(#b7c0c9).
+    나머지 — DESIGN-lovable.md: 차콜(#1c1c1c)의 투명도 계조, 400/600 두 굵기,
+    가는 선으로 묶고 그림자는 쓰지 않는다, 6px 단추 · 12px 카드.
+    영문 타이틀만 따로 — Geist Mono 100.
+  */
+  :root{
+    --bg:#b7c0c9;
+    --line:#9ca3ab;      /* 선 — 바탕색보다 15% 어둡게 */
+    --charcoal:#1c1c1c;
+    --slate:#3f4c59;     /* 바탕색에서 진해진 청회색 — 설명 글 */
+    --deep:#171d23;      /* 바탕색을 누른 청회색 — 폰 구역 색면 */
+    --black:#0b0b0b;     /* 푸터 */
+    --c04:rgba(28,28,28,.04);
+    --c03:rgba(28,28,28,.03);
+    --offwhite:#fcfbf8;
+    --inset:rgba(255,255,255,.2) 0 .5px 0 0 inset, rgba(0,0,0,.2) 0 0 0 .5px inset, rgba(0,0,0,.05) 0 1px 2px 0;
+    --focus:rgba(0,0,0,.1) 0 4px 12px;
+    --sans:ui-sans-serif, system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    --mono:"Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --wrap:1200px;
+    --gap:77px;          /* 첫 사진 ~ 첫 글 간격 = 구역 사이 거리 */
+    --optical:3px;       /* 큰 제목 아래 작은 글 시각 보정 */
+  }
+  *{box-sizing:border-box}
+  /* 문서 밖(넘겨 당긴 자리·좌우)은 푸터의 검정으로 — 바탕색은 본문(body)에만 */
+  html{scroll-behavior:smooth;background:var(--black);overscroll-behavior:none}
+  body{margin:0;background:var(--bg);color:var(--charcoal);font-family:var(--sans);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased;word-break:keep-all;overflow-wrap:break-word;overflow-x:hidden}
+  html[lang=en] body{word-break:normal}
+  img{display:block;max-width:100%;height:auto}
+  a{color:var(--charcoal)}
+  .wrap{max-width:var(--wrap);margin:0 auto;padding:0 24px}
+
+  /* 첫 화면 — 비율을 지킨 채 화면 가득 */
+  .cover{position:relative;height:100vh;height:100svh;overflow:hidden;background:var(--bg)}
+  .cover img{width:100%;height:100%;max-width:none;object-fit:cover;object-position:50% 50%}
+
+  /* GNB */
+  nav{position:fixed;top:0;left:0;right:0;z-index:10;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--line);transform:translateY(-100%);transition:transform .35s ease,background-color .3s,border-color .3s}
+  nav.on{transform:none}
+  nav .wrap{display:flex;align-items:center;justify-content:space-between;height:60px}
+  .logo{font-family:var(--mono);font-weight:100;font-size:20px;text-decoration:none;transition:color .3s}
+  nav .right{display:flex;gap:16px;align-items:center}
+  /* KO | EN — 글자 사이 연한 막대 하나로만 가른다. 고른 쪽은 진하게, 아닌 쪽은 흐리게 */
+  .lang{display:inline-flex;align-items:center}
+  .lang button{font:inherit;font-family:var(--mono);font-size:13px;letter-spacing:.06em;line-height:1;padding:8px 10px;border:0;background:none;color:var(--charcoal);opacity:.4;cursor:pointer;transition:opacity .2s,color .3s}
+  .lang button:hover{opacity:.75}
+  .lang button[aria-pressed=true]{opacity:1}
+  .lang button:focus-visible{outline:none;box-shadow:var(--focus);border-radius:4px}
+  .lang .bar{width:1px;height:12px;background:var(--line);transition:background-color .3s}
+  nav.inv{background:color-mix(in srgb,var(--deep) 86%,transparent);border-bottom-color:rgba(252,251,248,.1)}
+  nav.inv .logo{color:var(--offwhite)}
+  nav.inv .lang button{color:var(--offwhite)}
+  nav.inv .lang .bar{background:rgba(252,251,248,.25)}
+  nav.inv .btn.dark{background:var(--offwhite);color:var(--charcoal)}
+  nav.inv .btn.dark:hover{background:var(--deep);color:var(--offwhite);box-shadow:inset 0 0 0 1px rgba(252,251,248,.5)}
+
+  /* 단추 — 롤오버는 흰색으로 반전 */
+  .btn{display:inline-block;font-size:16px;line-height:1.5;padding:8px 16px;border-radius:6px;text-decoration:none;transition:background-color .2s,color .2s,box-shadow .2s}
+  .btn:active{opacity:.8}
+  .btn:focus-visible{outline:none;box-shadow:var(--focus)}
+  .btn.dark{background:var(--charcoal);color:var(--offwhite);box-shadow:var(--inset)}
+  .btn.dark:hover{background:#fff;color:var(--charcoal);box-shadow:inset 0 0 0 1px var(--charcoal)}
+  .btn.sm{font-size:14px;padding:6px 14px}
+  .btn.lg{padding:12px 28px}
+
+  /* 구역 — 사이 거리는 --gap 하나 */
+  .title{padding:var(--gap) 0 calc(var(--gap) / 2);text-align:center}
+  .title .lead{font-size:15.5px;line-height:1.5;color:var(--slate);margin:0 auto 40px;max-width:30em}
+  .note{font-size:14px;color:var(--slate);margin-top:16px}
+  .reveal{opacity:0;transform:translateY(16px);transition:opacity .9s ease,transform .9s ease}
+  .reveal.in{opacity:1;transform:none}
+  .reveal.d1{transition-delay:.15s}
+
+  section{padding:calc(var(--gap) / 2) 0}
+  .eyebrow{font-size:14px;color:var(--slate);margin:0 0 16px}
+  h2{font-size:clamp(36px,4.6vw,48px);font-weight:600;line-height:1.05;letter-spacing:-1.2px;margin:0 0 24px}
+  .intro{font-size:15.5px;line-height:1.5;color:var(--slate);max-width:34em;margin:0}
+  section .eyebrow,section .intro{padding-left:var(--optical)}
+
+  .pages{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:48px}
+  figure{margin:0}
+  .shot{background:#fff;border:1px solid var(--line);border-radius:12px}
+  figcaption{font-size:14px;color:var(--slate);margin-top:12px}
+  figcaption b{font-weight:600;color:var(--charcoal);margin-right:6px}
+
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:80px;align-items:start}
+  .split .shot{max-width:400px;margin:0 auto}
+
+  .formats{display:flex;flex-wrap:wrap;gap:8px;margin-top:32px}
+  .formats span{font-size:14px;padding:6px 14px;border:1px solid var(--line);border-radius:9999px;background:var(--c03)}
+
+  /* 폰 구역 — 처음부터 화면 폭 전체, 모서리 없음 */
+  .phone-zone{padding:calc(var(--gap) / 2) 0}
+  .phone-zone .panel{background:var(--deep);color:var(--offwhite);padding:min(18vh,160px) 0}
+  .phone-zone .eyebrow,.phone-zone .intro,.phone-zone figcaption{color:rgba(252,251,248,.62)}
+  .phone-zone figcaption b{color:var(--offwhite)}
+  .phones{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-top:48px}
+  .phones img{border-radius:12px;border:1px solid rgba(252,251,248,.12)}
+
+  ol.steps{list-style:none;padding:0;margin:40px 0 0;counter-reset:s;display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+  ol.steps li{counter-increment:s;border:1px solid var(--line);border-radius:12px;padding:24px;background:var(--c03)}
+  ol.steps li::before{content:counter(s,decimal-leading-zero);display:block;font-family:var(--mono);font-weight:100;font-size:32px;line-height:1;margin-bottom:20px}
+  ol.steps b{display:block;font-size:20px;font-weight:400;line-height:1.25;margin-bottom:8px}
+  ol.steps span{font-size:14px;color:var(--slate)}
+
+  .faq dl{margin:40px 0 0;border-top:1px solid var(--line)}
+  .faq dt{font-size:20px;line-height:1.25;padding-top:24px}
+  .faq dd{margin:8px 0 0;padding-bottom:24px;border-bottom:1px solid var(--line);color:var(--slate)}
+  code{font-family:var(--mono);font-size:.88em;background:var(--c04);border:1px solid var(--line);padding:1px 6px;border-radius:4px}
+
+  .cta{text-align:center;padding-bottom:var(--gap)}
+  .cta h2{font-family:var(--mono);font-weight:100;font-style:italic;letter-spacing:normal;font-size:clamp(32px,5vw,56px);line-height:1.1;padding-left:0}
+
+  /* 푸터 — 여기서부터 좌우·아래는 모두 검정 */
+  footer{background:var(--black);color:rgba(252,251,248,.55);font-size:14px;padding:80px 0 max(96px,12vh)}
+  footer .wrap{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap}
+  footer .logo{color:var(--offwhite);font-size:28px}
+
+  @media (max-width:1024px){
+    ol.steps{grid-template-columns:repeat(2,1fr)}
+  }
+  @media (max-width:768px){
+    .split{grid-template-columns:minmax(0,1fr);gap:48px}
+    .split .shot{width:100%}
+    .pages{gap:6px}
+  }
+  @media (max-width:600px){
+    :root{--gap:48px;--optical:2px}
+    .wrap{padding:0 16px}
+    h2{font-size:36px;letter-spacing:-.9px}
+    ol.steps{grid-template-columns:minmax(0,1fr)}
+    .pages{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+    .phones{gap:10px}
+    .phones img{border-radius:8px}
+    nav .right{gap:10px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .reveal{opacity:1;transform:none;transition:none}
+    nav{transition:none}
+  }
+</style>
+</head>
+<body>
+
+<nav id="gnb" aria-label="주 메뉴">
+  <div class="wrap">
+    <a class="logo" href="#top">30EBSE</a>
+    <div class="right">
+      <div class="lang" role="group" aria-label="Language">
+        <button type="button" data-lang="ko" aria-pressed="true">KO</button>
+        <span class="bar" aria-hidden="true"></span>
+        <button type="button" data-lang="en" aria-pressed="false">EN</button>
+      </div>
+      <a class="btn dark sm" href="https://github.com/marzipan2025/30EBSE/releases/latest" data-en="Get APK">APK 받기</a>
+    </div>
+  </div>
+</nav>
+
+<div class="cover" id="top">
+  <img src="img/hero.jpg" width="1980" height="1168" alt="책상 위 e-ink 기기에 30EBSE 목록 화면이 떠 있는 모습. 30EBSE — eBook by Sentence" data-en-alt="An e-ink device on a desk showing the 30EBSE list. 30EBSE — eBook by Sentence" fetchpriority="high">
+</div>
+
+<header class="title">
+  <div class="wrap">
+    <p class="lead reveal" data-en="One sentence per page.<br>An e-ink reader for slowly reading the texts you keep in a Google Drive folder.">한 쪽에 한 문장씩.<br>구글 드라이브 폴더에 넣어 둔 글을 e-ink 화면에서 천천히 읽는 리더.</p>
+    <div class="reveal d1">
+      <a class="btn dark lg" href="https://github.com/marzipan2025/30EBSE/releases/latest" data-en="Get APK">APK 받기</a>
+      <p class="note" data-en="Android 11+ · No account, no sign-in · Free">Android 11 이상 · 계정·로그인 없음 · 무료</p>
+    </div>
+  </div>
+</header>
+
+<section id="reading">
+  <div class="wrap">
+    <p class="eyebrow">Reading</p>
+    <h2 data-en="One screen, one sentence.">한 화면에, 한 문장만.</h2>
+    <p class="intro" data-en="Even long texts feel light, one sentence at a time. A single sentence in the middle, the sentence number above, the time below. Nothing else.">긴 글도 한 문장씩 넘기면 가볍습니다. 화면 가운데 문장 하나, 위에는 문장 번호, 아래에는 시각. 그 밖에는 아무것도 없습니다.</p>
+    <div class="pages">
+      <figure><img class="shot" src="img/eink-1.jpg" width="758" height="1024" loading="lazy" alt="문장 하나가 가운데 있는 읽기 화면" data-en-alt="Reading screen with one sentence in the middle"><figcaption data-en="<b>Reading</b>Shows only the sentence number and time"><b>읽기</b>문장 번호와 시간만 표시</figcaption></figure>
+      <figure><img class="shot" src="img/eink-2.jpg" width="758" height="1024" loading="lazy" alt="위쪽 단추와 아래 진행 막대가 보이는 화면" data-en-alt="Screen with buttons on top and a progress bar below"><figcaption data-en="<b>UI</b>Appears when you tap the upper half of the screen"><b>UI</b>화면의 위쪽 절반을 누르면 보임</figcaption></figure>
+      <figure><img class="shot" src="img/eink-4.jpg" width="758" height="1024" loading="lazy" alt="문장 뒤로 큰 시계가 겹쳐 보이는 화면" data-en-alt="Screen with a large clock behind the sentence"><figcaption data-en="<b>E-ink reader</b>Screen refresh every 15 minutes"><b>e북 리더기</b>15분마다 화면 리프레시</figcaption></figure>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap split">
+    <div>
+      <p class="eyebrow">Library</p>
+      <h2 data-en="One folder<br>is your library.">폴더 하나가<br>곧 서재입니다.</h2>
+      <p class="intro" data-en="Make a folder in Google Drive and put what you want to read in it. Everything, subfolders included, appears in the list. New files come in by name only and download the moment you tap them. Your place is remembered for each text.">구글 드라이브에 폴더를 만들고 읽을 글을 넣으세요. 하위 폴더까지 모두 목록에 올라오고, 새로 넣은 파일은 이름만 들어왔다가 누르는 순간 받습니다. 읽던 자리는 글마다 기억합니다.</p>
+      <div class="formats">
+        <span data-en="Google Docs">구글 문서</span><span>pdf</span><span>docx</span><span>epub</span><span>txt</span><span>md</span><span>srt</span>
+      </div>
+    </div>
+    <img class="shot" src="img/eink-list.jpg" width="758" height="1024" loading="lazy" alt="문서 목록 화면" data-en-alt="Document list screen">
+  </div>
+</section>
+
+<section class="phone-zone" id="phone">
+  <div class="panel" id="panel">
+    <div class="wrap">
+      <p class="eyebrow">On your phone, too</p>
+      <h2 data-en="Black on your phone.">폰에서는 검은 화면으로.</h2>
+      <p class="intro" data-en="Made for e-ink devices, but it runs just the same on Android phones.">e-ink 기기를 두고 만들었지만, 안드로이드 폰에서도 그대로 돌아갑니다.</p>
+      <div class="phones">
+        <figure><img src="img/phone-splash.jpg" width="624" height="1400" loading="lazy" alt="검은 바탕에 문단 기호가 있는 시작 화면" data-en-alt="Start screen with a pilcrow on black"><figcaption data-en="Start">시작</figcaption></figure>
+        <figure><img src="img/phone-settings.jpg" width="624" height="1400" loading="lazy" alt="구글 드라이브 링크를 넣는 설정 화면" data-en-alt="Settings screen for the Google Drive link"><figcaption data-en="Settings — one folder link">설정 — 폴더 링크 하나</figcaption></figure>
+        <figure><img src="img/phone-empty.jpg" width="624" height="1400" loading="lazy" alt="빈 목록 화면" data-en-alt="Empty list screen"><figcaption data-en="List">목록</figcaption></figure>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="how">
+  <div class="wrap">
+    <p class="eyebrow">How to start</p>
+    <h2 data-en="Four steps to start.">시작은 네 단계.</h2>
+    <ol class="steps">
+      <li><b data-en="Install the APK">APK 설치</b><span data-en="Tap Get APK and install it. The app lets you know when an update is available.">APK 받기를 눌러 받아 설치합니다. 업데이트가 있으면 앱이 알려 줍니다.</span></li>
+      <li><b data-en="Make a folder">폴더 만들기</b><span data-en="Create a folder in your own Google Drive and put what you want to read in it.">자신의 구글 드라이브 안에 폴더를 만들고 읽을 글을 넣습니다.</span></li>
+      <li><b data-en="Share by link">링크로 공유</b><span data-en="Set the folder’s sharing to “Anyone with the link” and copy the link.">폴더 공유를 “링크가 있는 모든 사용자”로 바꾸고 링크를 복사합니다.</span></li>
+      <li><b data-en="Paste">붙여넣기</b><span data-en="Enter the copied link in the app’s settings, and you’re done.">복사한 링크를 앱의 설정 창에 입력하면 끝.</span></li>
+    </ol>
+  </div>
+</section>
+
+<section id="faq" class="faq">
+  <div class="wrap">
+    <p class="eyebrow">FAQ</p>
+    <h2 data-en="Good to know">알아 두면 좋은 것</h2>
+    <dl>
+      <dt data-en="Why is there no sign-in?">로그인이 왜 필요 없나요?</dt>
+      <dd data-en="It only reads a folder shared by link. That also means anyone with the link can see the folder, so only put in texts you don’t mind being public.">링크로 공유된 폴더를 읽기만 하기 때문입니다. 대신 링크를 아는 누구나 그 폴더를 볼 수 있으니, 공개돼도 괜찮은 글만 넣으세요.</dd>
+      <dt data-en="Which devices does it run on?">어떤 기기에서 되나요?</dt>
+      <dd data-en="Android 11 or later. Tuned on a Boox Poke4 Lite (e-ink) and a Nothing Phone (2a). It isn’t on the Play Store.">Android 11 이상. Boox Poke4 Lite(e-ink)와 Nothing Phone (2a)에서 다듬었습니다. Play 스토어에는 없습니다.</dd>
+      <dt data-en="The app stops on my Boox.">Boox에서 앱이 멈춰요.</dt>
+      <dd data-en="Boox freezes newly installed apps automatically. Turn off <code>Automatically enable freezing after installing an app</code> under Settings → Apps → ❄.">Boox는 새로 설치한 앱을 자동으로 동결합니다. 설정 → 앱 → ❄ 에서 <code>Automatically enable freezing after installing an app</code>을 꺼 두세요.</dd>
+      <dt data-en="What about work or school accounts?">회사·학교 계정 폴더는요?</dt>
+      <dd data-en="Your admin may have blocked link sharing. Folders shared only with specific people can’t be read either.">관리자가 링크 공유를 막아 두었을 수 있습니다. “특정 사용자에게만 공유”한 폴더도 읽을 수 없습니다.</dd>
+    </dl>
+  </div>
+</section>
+
+<section class="cta">
+  <div class="wrap">
+    <h2>One sentence at a time.</h2>
+    <div style="margin-top:32px">
+      <a class="btn dark lg" href="https://github.com/marzipan2025/30EBSE/releases/latest" data-en="Get APK">APK 받기</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span class="logo">30EBSE</span>
+    <span>eBook by Sentence · Android 11+</span>
+  </div>
+</footer>
+
+<script>
+  /* ---- KO / EN ---- */
+  const META = {
+    ko:{title:'30EBSE — eBook by Sentence', desc:'한 쪽에 한 문장씩 읽는 e-ink 리더. 구글 드라이브 폴더 하나에 글을 넣으면 끝 — 로그인 없음.', nav:'주 메뉴'},
+    en:{title:'30EBSE — eBook by Sentence', desc:'An e-ink reader that shows one sentence per page. Put your texts in one Google Drive folder — no sign-in.', nav:'Main menu'}
+  };
+  document.querySelectorAll('[data-en]').forEach(el => el.dataset.ko = el.innerHTML);
+  document.querySelectorAll('[data-en-alt]').forEach(el => el.dataset.koAlt = el.alt);
+
+  function setLang(lang){
+    document.documentElement.lang = lang;
+    document.querySelectorAll('[data-en]').forEach(el => el.innerHTML = lang === 'en' ? el.dataset.en : el.dataset.ko);
+    document.querySelectorAll('[data-en-alt]').forEach(el => el.alt = lang === 'en' ? el.dataset.enAlt : el.dataset.koAlt);
+    document.querySelectorAll('.lang button').forEach(b => b.setAttribute('aria-pressed', b.dataset.lang === lang));
+    document.title = META[lang].title;
+    document.querySelector('meta[name=description]').content = META[lang].desc;
+    document.getElementById('gnb').setAttribute('aria-label', META[lang].nav);
+    try { localStorage.setItem('lang', lang); } catch(e) {}
+  }
+  document.querySelectorAll('.lang button').forEach(b => b.addEventListener('click', () => setLang(b.dataset.lang)));
+  let start = new URLSearchParams(location.search).get('lang');
+  if (!start) { try { start = localStorage.getItem('lang'); } catch(e) {} }
+  if (start === 'en') setLang('en');
+
+  /* ---- GNB: 첫 화면을 지나면 내려오고, 폰 구역 색면 위에서는 반전 ---- */
+  const gnb = document.getElementById('gnb');
+  const cover = document.querySelector('.cover');
+  const panel = document.getElementById('panel');
+  function onScroll(){
+    gnb.classList.toggle('on', scrollY > cover.offsetHeight - 60);
+    const r = panel.getBoundingClientRect();
+    gnb.classList.toggle('inv', r.top <= 30 && r.bottom >= 30);
+  }
+  addEventListener('scroll', onScroll, {passive:true});
+  addEventListener('resize', onScroll);
+  onScroll();
+
+  const io = 'IntersectionObserver' in window ? new IntersectionObserver(es => es.forEach(e => {
+    if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+  }), {threshold:.2}) : null;
+  document.querySelectorAll('.reveal').forEach(el => io ? io.observe(el) : el.classList.add('in'));
+</script>
+</body>
+</html>
