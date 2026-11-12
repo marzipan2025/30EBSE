@@ -34,7 +34,7 @@
     --sans:ui-sans-serif, system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
     --mono:"Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
     --wrap:1200px;
-    --gap:77px;          /* 첫 사진 ~ 첫 글 간격 = 구역 사이 거리 */
+    --gap:128px;         /* 구역 위아래 여백 */
     --optical:3px;       /* 큰 제목 아래 작은 글 시각 보정 */
   }
   *{box-sizing:border-box}
@@ -79,15 +79,14 @@
   .btn.sm{font-size:14px;padding:6px 14px}
   .btn.lg{padding:12px 28px}
 
-  /* 구역 — 사이 거리는 --gap 하나 */
-  .title{padding:var(--gap) 0 calc(var(--gap) / 2);text-align:center}
+  .title{padding:var(--gap) 0;text-align:center}
   .title .lead{font-size:15.5px;line-height:1.5;color:var(--slate);margin:0 auto 40px;max-width:30em}
   .note{font-size:14px;color:var(--slate);margin-top:16px}
   .reveal{opacity:0;transform:translateY(16px);transition:opacity .9s ease,transform .9s ease}
   .reveal.in{opacity:1;transform:none}
   .reveal.d1{transition-delay:.15s}
 
-  section{padding:calc(var(--gap) / 2) 0}
+  section{padding:var(--gap) 0}
   .eyebrow{font-size:14px;color:var(--slate);margin:0 0 16px}
   h2{font-size:clamp(36px,4.6vw,48px);font-weight:600;line-height:1.05;letter-spacing:-1.2px;margin:0 0 24px}
   .intro{font-size:15.5px;line-height:1.5;color:var(--slate);max-width:34em;margin:0}
@@ -100,13 +99,13 @@
   figcaption b{font-weight:600;color:var(--charcoal);margin-right:6px}
 
   .split{display:grid;grid-template-columns:1fr 1fr;gap:80px;align-items:start}
-  .split .shot{max-width:400px;margin:0 auto}
+  .split .shot{max-width:400px;justify-self:end}   /* 영역 오른쪽 끝 = 위 세 카드의 오른쪽 끝 */
 
   .formats{display:flex;flex-wrap:wrap;gap:8px;margin-top:32px}
   .formats span{font-size:14px;padding:6px 14px;border:1px solid var(--line);border-radius:9999px;background:var(--c03)}
 
   /* 폰 구역 — 처음부터 화면 폭 전체, 모서리 없음 */
-  .phone-zone{padding:calc(var(--gap) / 2) 0}
+  .phone-zone{padding:var(--gap) 0}
   .phone-zone .panel{background:var(--deep);color:var(--offwhite);padding:min(18vh,160px) 0}
   .phone-zone .eyebrow,.phone-zone .intro,.phone-zone figcaption{color:rgba(252,251,248,.62)}
   .phone-zone figcaption b{color:var(--offwhite)}
@@ -124,7 +123,7 @@
   .faq dd{margin:8px 0 0;padding-bottom:24px;border-bottom:1px solid var(--line);color:var(--slate)}
   code{font-family:var(--mono);font-size:.88em;background:var(--c04);border:1px solid var(--line);padding:1px 6px;border-radius:4px}
 
-  .cta{text-align:center;padding-bottom:var(--gap)}
+  .cta{text-align:center;padding-top:80px}
   .cta h2{font-family:var(--mono);font-weight:100;font-style:italic;letter-spacing:normal;font-size:clamp(32px,5vw,56px);line-height:1.1;padding-left:0}
 
   /* 푸터 — 여기서부터 좌우·아래는 모두 검정 */
@@ -141,7 +140,8 @@
     .pages{gap:6px}
   }
   @media (max-width:600px){
-    :root{--gap:48px;--optical:2px}
+    :root{--gap:64px;--optical:2px}
+    .title{padding:80px 0}
     .wrap{padding:0 16px}
     h2{font-size:36px;letter-spacing:-.9px}
     ol.steps{grid-template-columns:minmax(0,1fr)}
